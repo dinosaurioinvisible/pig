@@ -137,52 +137,12 @@ function pigDefinePythonInterpreterPath()
 	// string line
 	string pathToTxt
 	string platform = IgorInfo(2)
+	string pathToPython
 	// try to read python interpreter location from txt file in pig folder
 	// r: read only, z: prevents abort if file doesn't exist
 	open/r/z fref as pigPythonPath_txt
 	// if not, user has choose an interpreter
-	if (v_flag != 0)
-		// TODO
-		// check: is enough with python3 only?
-		GetFileFolderInfo/d/q
-		if (v_flag == -1)
-			Abort
-		endif
-		string pythonEnvironmentDir = s_path
-		// create txt file with path to python interpreter for future use
-		if (CmpStr(platform, "Windows") != 0)
-			// for macos: make unix paths
-			string path_to_python = pythonEnvironmentDir+"bin:python3"
-			string pathToPython = parseFilePath(5, path_to_python, "/", 0, 0)
-			// ParseFilePath fails if file doesn't exist yet
-
-			// string pathToTxt = pigPythonPath_txt
-			pathToTxt = pigPythonPath_txt
-			pathToTxt = ReplaceString("Macintosh HD:", pathToTxt, "/")
-			pathToTxt = ReplaceString(":", pathToTxt, "/")
-			// for debugging
-			// print unix_path_to_python
-			// print unix_path_to_txt
-			// create file and write path to python interpreter on it 
-			string cmd
-			sprintf cmd, "do shell script \"touch '%s' && echo %s >> '%s'\"", pathToTxt, pathToPython, pathToTxt
-			executeScriptText cmd
-			print "\npath to python saved at: "+pathToTxt
-		else
-			// for windows the files to interpreter are  usually different
-			path_to_python = pythonEnvironmentDir+"Scripts:python.exe"
-			pathToPython = parseFilePath(5, path_to_python, "\\", 0, 0)
-			pathToTxt = parseFilePath(5, pigPythonPath_txt, "\\", 0, 0)
-			// for debugging only
-			// print path_to_python
-			// print pathToPython
-			// print pigPythonPath_txt
-			// print pathToTxt
-			executeScriptText "cmd.exe /c echo "+pathToPython+" >> \""+pathToTxt+"\""
-			print "\npath to python saved at: "+pathToTxt
-		endif
-	// if txt file already exists
-	else
+	if (v_flag == 0)
 		freadLine fref, pathToPython
 		close fref
 		// just for information, when loading pathToPython from txt
@@ -197,17 +157,31 @@ function pigDefinePythonInterpreterPath()
 		// print info
 		print "\n\tusing python interpreter at: "+pathToPython
 		print "\tpython path saved in txt file at: "+pathToTxt
-		print "\tremove txt file to change interpreter"
+		string/g root:Packages:pig:pigPathToPythonInterpreter = TrimString(pathToPython)
+	else
+		print "\npig_path_to_python_interpreter.txt not found"
+		string/g root:Packages:pig:pigPathToPythonInterpreter = ""
 	endif
-	// save as constant - /g: global
-	// string/g pigPythonPath = pathToPython
-	string/g pigPathToPython = pathToPython
-	// for debug:
-   // print pigPythonPath
 end
 
 
 // 5
+function pigDefinePathToKS()
+	// path to pig directory in users procedures
+	string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
+	// search for txt file with location of python interpreter in pig folder
+	string pathToKSIgor = pigPath + "ks_method.py"
+	string platform = IgorInfo(2)
+	string pathToKS
+	if (CmpStr(platform, "Windows") != 0)
+		pathToKS = parseFilePath(5, pathToKSIgor, "/", 0, 0)
+	else
+		pathToKS = parseFilePath(5, pathToKSIgor, "\\", 0, 0)
+	endif
+	string/g root:Packages:pig:pigPathToKS = pathToKS
+end
+
+// 6
 // loads movie only - split channels & ch2stimulus > in python
 function pigLoadMovie()
 	imageload/q/o/c=-1
@@ -215,13 +189,16 @@ function pigLoadMovie()
 	if (v_flag == 0)
 		Abort
 	endif
-	// remove extension
-	string fileName = s_filename
-	string movieName = s_filename[0,strsearch(s_filename,".tif",0)-1]+"_pig"
+	// remove extension from name 
+	string fname = s_filename[0,strsearch(s_filename,".tif",0)-1]
+	// create folder for movie and move loaded movie there
+	NewDataFolder/O root:$fname
+	string movieName = "root:" +fname+ ":" +fname
+	// if movie exists, overwrite
 	if (waveExists($movieName))
 		killwaves/z $movieName
 	endif
-	rename $s_filename, $movieName
+	moveWave $s_filename, $movieName
 	// retrieve necessary info
 	// this works eith the older version of scan image only
 	// when working with the newer version, python will return an _info.txt file
@@ -247,15 +224,16 @@ function pigLoadMovie()
 	// make global string for path
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") != 0)
-		string/g pigPathToMovie = parseFilePath(5,filePath,"/",0,0)
+		string/g root:Packages:pig:pigPathToMovie = parseFilePath(5,filePath,"/",0,0)
 	else 
-		string/g pigPathToMovie = parseFilePath(5,filePath,"\\",0,0)
+		string/g root:Packages:pig:pigPathToMovie = parseFilePath(5,filePath,"\\",0,0)
 	endif
-	print "\nloaded movie from: "+pigPathToMovie
+	// print "\nloaded movie from: "+pigPathToMovie
+	print "\nloaded movie from: "+filePath
 end
 
 
-// 6
+// 7
 // select python script
 function pigSelectPythonScript()
 	// d: dialog, r: read only
@@ -278,17 +256,60 @@ function pigSelectPythonScript()
 	//print path_to_python_script
 	//mode 5 is for turning igor spaths into unix/windows type paths
 	string platform = IgorInfo(2)
-	if (CmpStr(platform, "Windows") != 0)
-		path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
-	else
+	if (CmpStr(platform, "Windows") == 0)
 		path_to_python_script = parseFilePath(5,path_to_python_script,"\\",0,0)
+	else
+		path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
 	endif
 	string/g pigPathToScript = path_to_python_script
 	print "\n\tselected python script at: "+pigPathToScript
 end
 
 
-// 7
+// 8
+// run ks analysis
+function pigRunKS(wave movie)
+	string platform = IgorInfo(2)
+	// path to python interpreter
+	svar pigPathToPython = root:Packages:pig:pigPathToPythonInterpreter
+	// path to KS.py
+	svar pigPathToKS = root:Packages:pig:pigPathToKS
+	// get path to file
+	string pathToMovieIgor = stringByKey("fpath",note(movie),"=","\r")
+	string pathToMovie
+	if (CmpStr(platform, "Windows") == 0)
+		pathToMovie = parseFilePath(5, pathToMovieIgor,"\\",0,0)
+	else
+		pathToMovie = parseFilePath(5, pathToMovieIgor,"/",0,0)
+	endif
+	// optional parameters
+	svar fov = root:Packages:pig:FOV
+	svar alpha = root:Packages:pig:alpha
+	// run KS
+	string dirpath
+	if (CmpStr(platform, "Windows") == 0)
+		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie)
+		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
+	else
+		// string igorcmd = "do shell script \"\'" + pigPathToPython+"\' \'" + pigPathToKS + "\' \'" + pathToMovie + "\'\""
+		// print "\nshell command:"
+		// print igorcmd
+   	// executeScriptText/z igorcmd
+   	// this shows errors from python
+	   // print "s_value:"
+   	// print s_value
+   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie)
+   	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
+	endif
+	// load files into igor
+	string path_to_python_output = dirpath+"python_output"
+	LoadFiles(dirpath=path_to_python_output)
+	print "temporal files at: "+path_to_python_output
+	// remove temporal files
+	
+end
+
+// 9
 // runs script on movie depending whether system is windows or macos
 function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, string pathToMovie])
 	// check platform
@@ -302,7 +323,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		// the path inside the txt file is made a global string = pigthonPythonPath
 		pigDefinePythonInterpreterPath()
 		// svar makes a reference to the global string pigPythonPath
-		svar pigPathToPython = root:pigPathToPython
+		svar pigPathToPython = root:Packages:pig:pigPathToPython
 		// trim removes whitespaces & newlines, need because of echo + just in case
 		pathToPython = TrimString(pigPathToPython)
 	endif
