@@ -41,7 +41,7 @@ class KS_pipeline:
             self.threshold_percentile = percentile
             self.min_distance = min_distance
             self.synapseSize = synapse_size
-            # this could be dynamic (depends on reg type)
+            # not changeable from igor
             self.sigma_smooth = sigma_smooth
             self.sigma_fit = sigma_fit
             self.lambda_reg = lambda_reg
@@ -49,20 +49,24 @@ class KS_pipeline:
             self.igor = igor
             self.debug = debug
             self.mk_plots = mk_plots
-            # self.roi_radius = roi_radius
             self.run()
 
     def run(self):
+        # load & pre-process
         self.load_movie()
         self.register()
         self.interpolate()
         self.bleach_correction()
+        # setup search
         self.define_roi_size()
         self.stim_transitions()
+        # search for potential candidates
         self.mk_deltaf_map()
+        # filter candidate synapses
         self.ks_distance()
         # in case there's no synapses found
         if isinstance(self.synapses,np.ndarray):
+            # extract traces
             self.ridge_demixing()
             self.compute_dff_traces()
             if self.mk_plots:
@@ -85,10 +89,10 @@ class KS_pipeline:
         # metadata (only for scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
-            self.metadata = self.get_metadata(x, datatype='Software')
+            self.get_metadata(x, datatype='Software')
             self.movie = raw_movie[:,0,:,:]
         else:
-            self.metadata = self.get_metadata(x, datatype='ImageDescription')
+            self.get_metadata(x, datatype='ImageDescription')
             self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
@@ -127,15 +131,6 @@ class KS_pipeline:
             # Software metadata is more accurate, so no exactly 20hz, for example
             self.frameRate = round(float(self.metadata['SI.hRoiManager.scanFrameRate']))
             self.zoomFactor = float(self.metadata['SI.hRoiManager.scanZoomFactor'])
-            # data for FOV
-            # fov_um_data = self.metadata['SI.hRoiManager.imagingFovUm']
-            # fov_ums = np.array([x.split() for x in fov_um_data[1:-1].split(";")]).astype(float)
-            # sx = abs(max(fov_ums[:,0])-min(fov_ums[:,0]))
-            # sy = abs(max(fov_ums[:,1])-min(fov_ums[:,1]))
-            # if sx == sy:
-            #     self.fov = int(sx * self.zoomFactor)
-            # else:
-            #     raise Exception("\nimage is not originally squared?/n")
         self.dt = 1/self.frameRate
 
 
@@ -146,20 +141,16 @@ class KS_pipeline:
             self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
         else:
             self.stimulus = raw_movie[1::2].mean(axis=(1,2))
-            self.stimulus /= self.stimulus.max()
         # normalize
         if self.stimulus.max() > 1:
             self.stimulus = self.stimulus/self.stimulus.max()
-        # in theory there's no capture of singal t=0
+        # in theory there's no capture of signal t=0
         # so array should go from 0.05 to t_f
-        # i'm making 0 to t_f - 0.05, for simplicity
+        # i'm making 0 to (t_f - 0.05), for simplicity
         # but it should be the other way
         self.stimulus2d = np.zeros((2,self.nframes))
         self.stimulus2d[0] = np.arange(self.nframes)/self.frameRate
         self.stimulus2d[1] = self.stimulus
-        # if self.mk_plots:
-        #     plt.plot(*self.stimulus2d)
-        #     plt.show()
         if self.igor:
             # tf.imwrite(f'{self.savepath}_stimulus.tif', self.stimulus2d)
             # np.savetxt(f'{self.savepath}_stimulus2d.csv', self.stimulus2d, delimiter=",")
@@ -169,7 +160,14 @@ class KS_pipeline:
 
     # i'm leaving this as independent in case we want
     # to try other registration methods
+    # this registration is very straightforward
+    # the mean (for reference) is computed only once, before registration
+    # normally a proper registration should update the mean
+    # so that it register in relation to the previously registered movie
+    # this way (1 reg) introduces a bias to the phase cross corr
+    # but it seems to work well enough nonetheless
     def register(self, upsample_factor=10):
+        # static reference
         reference = self.movie.mean(axis=0)
         movie_reg = np.zeros_like(self.movie)
         for i in range(self.nframes):
@@ -185,6 +183,7 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
+    # we know that nrows <= ncols
     def interpolate(self):
         # interpolates to make it squared (x = 128)
         zoom_ratio = self.movie.shape[2]/self.movie.shape[1]
@@ -199,17 +198,26 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # TODO: i don't understand this totally, applies to CA?
     # correct for the bleaching of glutamate
-    def bleach_correction(self):
+    def bleach_correction(self,rescale=True):
+        # reference
         frame_mean = self.movie.mean(axis=(1,2))
         def exp_decay(t,A,tau,C):
             return A*np.exp(-t/tau)+C
+        t = np.arange(self.nframes)/self.frameRate
+        # initial guess for params
         p0 = [frame_mean[0] - frame_mean[-1], self.nframes/self.frameRate/2, frame_mean[-1]]
-        time = np.arange(self.nframes)/self.frameRate
-        params,_ = curve_fit(exp_decay,time,frame_mean,p0=p0,maxfev=10000)
-        fit_curve = exp_decay(time,*params)
-        self.movie = self.movie / np.maximum(fit_curve[:,None,None],1e-8)
+        # fits a curve to the bleaching using frame_mean as reference
+        # params = [A_fit, tau_fit, C_fit]
+        params,_ = curve_fit(exp_decay,t,frame_mean,p0=p0,maxfev=10000)
+        # evaluate at every t
+        fit_curve = exp_decay(t,*params)
+        if not rescale:
+            # divide each frame by fit curve value - 1e-8 is simply to avoid zero div
+            self.movie = self.movie / np.maximum(fit_curve[:,None,None],1e-8)
+        else:
+            # same but rescaled (otherwise you risk normalizing)
+            self.movie = self.movie * (fit_curve[0] / np.maximum(fit_curve[:,None,None],1e-8))
         if self.debug:
             print('in bleach_correction()')
             import pdb; pdb.set_trace()
@@ -225,9 +233,14 @@ class KS_pipeline:
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
         self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
-
+        # if roi radius < min distance between peaks
+        # then the demixing wont make sense
+        if self.min_distance < self.roi_radius:
+            self.min_distance = int(self.roi_radius) + 1
 
     # decouple baseline & activity
+    # delta: threshold to count as deviation from baseline
+    # post_window: time window considered as potentially active (not baseline)
     def stim_transitions(self,delta=0.01,post_window=500):
         # get approx mean for comparison
         bval = self.stimulus[1:10].mean()
@@ -236,7 +249,7 @@ class KS_pipeline:
         self.baseline = np.where(abs(self.stimulus-bval) < bval*delta, 0, 1)
         # wx: window after which, even if baseline, signals reflect activity
         # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
-        wx = int(self.frameRate/(1000/post_window))
+        wx = int(self.frameRate * post_window/1000)
         # bis: points where baseline/resting intervals start (skips t=0)
         # if x(t)=rest=0 - x(t-1)=act=1 = -1 => from act to rest
         bis = np.where(self.baseline-np.roll(self.baseline,1)==-1)[0]
@@ -251,7 +264,6 @@ class KS_pipeline:
             import pdb; pdb.set_trace()
 
 
-    # TODO: why is this before ks-distance?
     # TODO: is percentile the best threshold abs?
     # wouldn't that be threshold rel?
     # ΔF map + peak detection
@@ -274,11 +286,8 @@ class KS_pipeline:
 
 
     # TODO: is not actually using the distance
-    # TODO: if ROIs are averaged, shouldn't min_distance be 0/1? > test
-    # TODO: study p-value thresholding
-    # TODO: why there is a ΔF/F and a ΔF map?
-    # TODO: make a ks map for igor
     # KS between ROIs (baseline vs activity)
+    # Benjamini-Hochberg FDR
     def ks_distance(self):
         self.ks_peaks = []
         # meshgrid for rows and cols
@@ -287,37 +296,48 @@ class KS_pipeline:
         for y0,x0 in self.deltaf_peaks:
             # x^2 + y^2 = r^2
             mask = ((yy-y0)**2 + (xx-x0)**2) <= self.roi_radius**2
-            # ΔF/F
-            f0 = self.movie[self.baseline_idxs][:,mask].mean()
-            f1 = self.movie[self.activity_idxs][:,mask].mean()
-            dff = (f1-f0)/f0
             # vals: pixel vals in circular region around pixel across movie
             # [:,mask] doesn't preserve shape: returns 1d arr for each frame
             baseline_vals = self.movie[self.baseline_idxs][:,mask].mean(axis=1)
             activity_vals = self.movie[self.activity_idxs][:,mask].mean(axis=1)
+            # ΔF/F = (f1-f0)/f0
+            f0 = baseline_vals.mean()
+            f1 = activity_vals.mean()
+            dff = (f1-f0)/f0 if f0 > 0 else np.nan
             # ks
             dist,pval = ks_2samp(baseline_vals, activity_vals)
             self.ks_peaks.append([y0,x0,dff,dist,pval])
+
         # ks peaks = [y0, x0, dff, ks dist, ks pval]
         # sort by p-vals
         self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[-1]))
         # threshold line
-        th_line = self.alpha * np.arange(1, len(self.ks_peaks)+1)/len(self.ks_peaks)
-        # remove where p-values > threshold line
-        # import pdb; pdb.set_trace()
-        self.ks_peaks = self.ks_peaks[np.where(self.ks_peaks[:,-1] <= th_line)]
-        # check whether there are significative synapses
-        if len(self.ks_peaks) == 0:
+        pvals = self.ks_peaks[:,-1]
+        m = len(pvals)
+        th_line = self.alpha * np.arange(1, m+1)/m
+        significant = pvals <= th_line
+        # check
+        if not np.any(significant):
             # raise Exception ('\nNo significative peaks found\n')
             print('\nNo significative peaks found\n')
-            self.synapses = None
+            self.synapses = []
             return
+
+        # remove non significant
+        max_i = np.where(significant)[0].max()
+        p_cutoff = pvals[max_i]
+        # keep rows whose p-value is under BH cutoff
+        self.ks_peaks = self.ks_peaks[pvals <= p_cutoff]
         # sort by ΔF/F and keep coords only
         self.synapses = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=True))[:,:2].astype(int)
-        # masked 2d array for synapses
-        self.synapses_mask = np.ones((self.movie.shape[1:])) * -1
+        # masked 2d arrays for synapses
+        self.synapses_mask_pixels = np.ones((self.movie.shape[1:])) * -1
+        self.synapses_mask_rois = np.full(self.movie.shape[1:], -1, dtype=int)
         for ei,(row,col) in enumerate(self.synapses,1):
-            self.synapses_mask[row,col] = ei
+            self.synapses_mask_pixels[row,col] = ei
+            disk = ((yy-row)**2 + (xx-col)**2) <= self.roi_radius**2
+            self.synapses_mask_rois[disk] = np.where(self.synapses_mask_rois[disk] == -1, ei, self.synapses_mask_rois[disk])
+
         # export data
         if self.debug:
             print('in ks_distance()')
@@ -327,7 +347,8 @@ class KS_pipeline:
             df2 = pd.DataFrame(self.synapses, columns=["row","col"])
             df1.to_csv(f'{self.savepath}_peaks.csv')
             df2.to_csv(f'{self.savepath}_synapses.csv')
-            tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask)
+            tf.imwrite(f'{self.savepath}_pixelroimask.tif', self.synapses_mask_pixels)
+            tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask_rois)
         # txt info
         if self.igor:
             f = open(f'{self.savepath}_info.txt', 'w')
@@ -338,15 +359,20 @@ class KS_pipeline:
             f.write(f'dt={self.dt}\n')
             f.write(f'zoomFactor={self.zoomFactor}\n')
             f.write(f'pixelSize={self.pixelSize}\n')
-            # f.write(f'roiRadius={self.roi_radius}\n')
+            f.write(f'roiRadius={self.roi_radius}\n')
             f.write(f'nsynapses={self.synapses.shape[0]}')
             f.close()
 
 
-    # TODO: understand better the last part here
-    # TODO: why is returning pixels instead of ROIs?
-    # TODO: is it necessary to discard margins again?
+    # TODO: using a single bounding box for demixing all together is expensive
+    # it may be faster to make many, but i'm not sure how
+    # TODO: may be useful to find a good lambda reg before demixing
+    # returns the scalar amplitude per synapse & per frame, across movie
+    # it returns a value for the entire 2d synapse (amplitude)
     # 2 x 2d gaussians fit for demixing
+    # note that sigma fit is fixed, so every synapse is calculated using
+    # the same gaussian width (safer, not knowing before hand their 3d pos)
+    # padding doesn't necessary have to use the same edge_margins here
     def ridge_demixing(self):
         # unzip, same as zip(*synapses)
         ys, xs = np.array(self.synapses).T
@@ -375,26 +401,33 @@ class KS_pipeline:
         # lambda reg adds a small value to the diagonal (* np.eye)
         # so too small makes the solution unstable
         # too large it looses signals (makes weights almost 0)
+        # here is basically hardcoded
         gs_demix = np.linalg.solve(gs_cov + self.lambda_reg * np.eye(gs_cov.shape[0]), gs.T)
         # get amplitudes
         self.gs_amps = np.zeros((self.synapses.shape[0],self.nframes))
-        for nf in range(self.nframes):
-            frame = self.movie[nf,ymin:ymax,xmin:xmax].flatten()
-            # 23 x (~128x128).flat @ (~128x128).flat x 1 => 23 x 1
-            self.gs_amps[:,nf] = gs_demix @ frame
+        # for nf in range(self.nframes):
+        #     frame = self.movie[nf,ymin:ymax,xmin:xmax].flatten()
+        #     # example: 23 x (~128x128).flat @ (~128x128).flat x 1 => 23 x 1
+        #     self.gs_amps[:,nf] = gs_demix @ frame
+        # vectorized version, faster, but needs more checking
+        frames = self.movie[:, ymin:ymax, xmin:xmax].reshape(self.nframes, -1).T
+        self.gs_amps = gs_demix @ frames
+        # save
+        if self.igor:
+            # the transposition is just for visualization
+            np.savetxt(f'{self.savepath}_gs_amps.csv', self.gs_amps.T, delimiter=',')
         if self.debug:
             print('in ridge_demix()')
+            # to check if lambda reg is ok (if >> 1, lambda reg is too small)
+            print(f'> gs_cov condition number: {np.linalg.cond(gs_cov):.1f}')
             import pdb; pdb.set_trace()
 
 
-    # TODO: why is there a different baseline window here?
-    # TODO: check if tiff is best way to save
-    # TODO: ask leon?
     # i assume is the same as only the first window
     def compute_dff_traces(self):
-        # original:
-        # baseline_idxs_dff = np.arange(20,b)
-        baseline_idxs_dff = np.arange(self.activity_idxs[0])
+        # skips initial frames, to avoid artifacts
+        baseline_idxs_dff = np.arange(20,self.activity_idxs[0])
+        # baseline_idxs_dff = np.arange(self.activity_idxs[0])
         # get traces
         self.dff_traces = []
         for i,amp in enumerate(self.gs_amps):

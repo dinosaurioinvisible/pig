@@ -14,6 +14,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:alpha=0.05
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
+	pigDefinePathToKS()
 	// main panel
 	// /w=(left, top, right, bottom)
 	NewPanel/w = (666,111,1055,400) as "pig — KS denoising"
@@ -139,7 +140,6 @@ Function button_setPythonInterpreter(sva) : SetVariableControl
 End
 
 
-
 // pig: load movie
 function button_loadMovie(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
@@ -154,6 +154,33 @@ function button_loadMovie(ba) : ButtonControl
 	endswitch
 	return 0
 end
+
+// pig: run ks analysis
+function button_runKS(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+
+	switch( ba.eventCode )
+		case 2: // mouse up
+			
+			string list=wavelist("*",";","DIMS:3")
+			string name
+			prompt name, "pick movie (in current data folder)", popup,list
+			doprompt "pick movie ", name
+				if(V_flag==1)
+					Abort
+				endif	
+			wave picwave=$name
+			
+			pigRunKS(picwave)
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+
+	return 0
+end
+
 
 // pig: select python script
 function button_pyScript(ba) : ButtonControl

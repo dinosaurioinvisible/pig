@@ -306,6 +306,15 @@ function pigRunKS(wave movie)
 	LoadFiles(dirpath=path_to_python_output)
 	print "temporal files at: "+path_to_python_output
 	// remove temporal files
+	if (CmpStr(platform, "Windows") == 0)
+		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
+	else
+		string cmd
+		sprintf cmd, "do shell script \"rm -rf %s\"", path_to_python_output
+		executeScriptText/b/z cmd
+		print s_value
+	endif
+	print "removed temporal files from: "+path_to_python_output
 	
 end
 
