@@ -2,6 +2,7 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
 #include "LoadMultipleFiles"
+#include "Ch2LineRes"
 
 // ~ index
 // 1. runCommandOnWindowsCmd, runCommandOnMacosShell - to run single commands
@@ -103,13 +104,17 @@ end
 // 3
 // on mac this can be a pain, mostly because of the "do shell script"
 // you can do without it, but it can get quite confusing
-function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_python_script, string path_to_movie)
-	// pawell fix, really classy
-	string igorcmd = "do shell script \"\'" + path_to_python+"\' \'" + path_to_python_script + "\' \'" + path_to_movie + "\'\""
+function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
+	string igorcmd
+	if (paramIsDefault(args) == 0)
+		igorcmd = "do shell script \"\'" + path_to_python + "\' \'" + path_to_python_script + "\' \'" + path_to_movie + "\' \'" + args + "\'\""
+	else
+		// pawell fix, really classy
+		igorcmd = "do shell script \"\'" + path_to_python + "\' \'" + path_to_python_script + "\' \'" + path_to_movie + "\'\""
+	endif
 	// for debugging only
 	// string igorcmd
 	// sprintf igorcmd, "do shell script \"%s %s %s\"", path_to_python, path_to_python_script, path_to_movie
-	// not necessary, but guess more info is better than less
 	print "\nshell command:"
 	print igorcmd
    executeScriptText/z igorcmd
@@ -182,8 +187,9 @@ function pigDefinePathToKS()
 end
 
 // 6
-// loads movie only - split channels & ch2stimulus > in python
+// load movie
 function pigLoadMovie()
+
 	imageload/q/o/c=-1
 	// flag=0 is no image in imageload
 	if (v_flag == 0)
@@ -198,27 +204,51 @@ function pigLoadMovie()
 	if (waveExists($movieName))
 		killwaves/z $movieName
 	endif
+	// move to its own folder
 	moveWave $s_filename, $movieName
+	
 	// retrieve necessary info
-	// this works eith the older version of scan image only
-	// when working with the newer version, python will return an _info.txt file
-	// with FOV, zoomFactor & frameRate
-	print s_info
+	// this works with the older version of scan image only
+	// print s_info
 	string metadata = s_info
 	// get info - to access note info: print note($"movieName")
 	string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
-	//variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
+	variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
 	variable frameRate = numberByKey("state.acq.frameRate",s_info,"=","\r")
 	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
+	variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
+	variable angleSlow = numberByKey("state.acq.scanAngleMultiplierSlow",s_info,"=","\r")
+	
+	// get deltas to scale 
+	// not the same, but basically from apply header info (in LoadScanImage)
+	variable x_res,y_res
+	variable timePerLine = msPerLine/1000
+	nvar fov = root:Packages:pig:FOV
+	x_res = fov / zoomFactor * angleFast / dimsize($movieName,0)
+	y_res = fov / zoomFactor * angleSlow / dimsize($movieName,1)
+	// setscale dim, num1, num2 (x: rows, y: cols)
+	// /p is for changing the delta value according to num2
+	setscale /p x, 0, x_res,"µm",$movieName
+	setscale /p y, 0, y_res,"µm",$movieName
+	variable z_res
+	z_res = timePerLine *  dimsize($movieName,1)
+	setscale /P z, 0, z_res,"s",$movieName
+	
+	// append info to notes
 	note $movieName, "expDate="+expDate
-	//note $movieName, "msPerLine="+num2str(msPerLine)
+	note $movieName, "msPerLine="+num2str(msPerLine)
 	note $movieName, "frameRate="+num2str(frameRate)
 	note $movieName, "zoomFactor="+num2str(zoomFactor)
-	// note $movieName, metadata
+	note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
+	note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
 	note $movieName, "fdir="+s_path
 	note $movieName, "fname="+s_filename
 	string filePath = s_path+s_filename
 	note $movieName, "fpath="+filePath
+	note $movieName, ""
+	// append all info (in case it's needed)
+	note $movieName, metadata
+	
 	// convert to double precision floating point
 	// redimension /d $movieName
 	// make global string for path
@@ -228,7 +258,37 @@ function pigLoadMovie()
 	else 
 		string/g root:Packages:pig:pigPathToMovie = parseFilePath(5,filePath,"\\",0,0)
 	endif
-	// print "\nloaded movie from: "+pigPathToMovie
+	
+	// split channels (using fxs from LoadScanImage
+	variable nChannels = nChannelsFromHeader($movieName)
+	splitChannels($movieName,nChannels)
+	// move to movie folder
+	variable i
+	string chName, chPath
+	for (i=0; i<nChannels; i+=1)
+		chName = fname+"_ch"+num2str(i+1)
+		chPath = movieName+"_ch"+num2str(i+1)
+		// if channel movie exists, erase (otherwise yields error)
+		if (waveExists($chPath))
+			killwaves/z $chPath
+		endif
+		moveWave $chName, $chPath
+	endFor
+	
+	// mk stimulus wave
+	waveCh2lineRes($movieName)
+	string stimulusWaveDefault = "root:timewave"
+	string stimulusWave = movieName+"_stim"
+	// if it exists, erase (otherwise yields error)
+		if (waveExists($stimulusWave))
+			killwaves/z $stimulusWave
+		endif
+	moveWave $stimulusWaveDefault, $stimulusWave
+	// normalize
+	// wave wvi = $stimulusWave
+	// wvi = wvi / waveMax(wvi)
+	// wvi = (wvi - WaveMin(wvi)) / (WaveMax(wvi) - WaveMin(wvi))
+	
 	print "\nloaded movie from: "+filePath
 end
 
@@ -283,22 +343,18 @@ function pigRunKS(wave movie)
 		pathToMovie = parseFilePath(5, pathToMovieIgor,"/",0,0)
 	endif
 	// optional parameters
-	svar fov = root:Packages:pig:FOV
-	svar alpha = root:Packages:pig:alpha
+	nvar fov = root:Packages:pig:FOV
+	nvar alpha = root:Packages:pig:alpha
 	// run KS
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
 		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
-		// string igorcmd = "do shell script \"\'" + pigPathToPython+"\' \'" + pigPathToKS + "\' \'" + pathToMovie + "\'\""
-		// print "\nshell command:"
-		// print igorcmd
-   	// executeScriptText/z igorcmd
-   	// this shows errors from python
-	   // print "s_value:"
-   	// print s_value
-   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie)
+   	string ks_args
+		sprintf ks_args, "--fov=%s\' \'--alpha=%s", num2str(fov), num2str(alpha)
+   	
+   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
 	// load files into igor

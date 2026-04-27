@@ -126,7 +126,7 @@ class KS_pipeline:
         if datatype == 'ImageDescription':
             self.frameRate = float(self.metadata["state.acq.frameRate"])
             self.zoomFactor = float(self.metadata["state.acq.zoomFactor"])
-            print("Field of view assumed to be 610, but do check this")
+            # print("Field of view assumed to be 610, but do check this")
         if datatype == 'Software':
             # Software metadata is more accurate, so no exactly 20hz, for example
             self.frameRate = round(float(self.metadata['SI.hRoiManager.scanFrameRate']))

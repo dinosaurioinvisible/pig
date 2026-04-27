@@ -1,9 +1,7 @@
 ﻿#pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
-#include "Ch2LineRes"
 #include "pig"
-
 
 // panel for pig
 Window pigPanel(): Panel_pig
@@ -76,6 +74,9 @@ Window pigPanel(): Panel_pig
 	// pig: choose script
 	Button pyScript, pos={30,220}, size={100,20}, proc=button_pyScript, title="choose script"
 	Button pyScript, fColor=(16191,18504,18761)
+	// pig: run
+	Button pigRun, pos={285,220}, size={75,20}, proc=button_pyScript, title="run"
+	Button pigrun, fColor=(16191,18504,18761)
 	// pig: box for interpreter path
 	SetVariable pigPathToInterpreter, pos={30,245}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
 	SetVariable pigPathToInterpreter, help={"path to python interpreter"},fSize=12,fStyle=1
@@ -90,7 +91,7 @@ end
 // pig: select python interpreter - automatic at the start
 // to manually write the path to the interpreter & create txt
 // it overwrites whatever it is written in the txt in the pig folder
-Function button_setPythonInterpreter(sva) : SetVariableControl
+function button_setPythonInterpreter(sva) : SetVariableControl
 	STRUCT WMSetVariableAction &sva
 
 	switch( sva.eventCode )
@@ -137,7 +138,7 @@ Function button_setPythonInterpreter(sva) : SetVariableControl
 	endswitch
 
 	return 0
-End
+end
 
 
 // pig: load movie
@@ -155,10 +156,49 @@ function button_loadMovie(ba) : ButtonControl
 	return 0
 end
 
+
+// pig: define FOV
+function button_setFOV(sva) : SetVariableControl
+	STRUCT WMSetVariableAction &sva
+	switch( sva.eventCode )
+		case 1: // mouse up
+		case 2: // Enter key
+		case 3: // Live update
+			Variable dval = sva.dval
+			String sval = sva.sval
+			
+			variable/g root:packages:pig:FOV=dval
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// pig: define alpha
+function button_setAlpha(sva) : SetVariableControl
+	STRUCT WMSetVariableAction &sva
+	switch( sva.eventCode )
+		case 1: // mouse up
+		case 2: // Enter key
+		case 3: // Live update
+			Variable dval = sva.dval
+			String sval = sva.sval
+			
+			variable/g root:packages:pig:alpha=dval
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+
 // pig: run ks analysis
 function button_runKS(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
-
 	switch( ba.eventCode )
 		case 2: // mouse up
 			
@@ -172,6 +212,7 @@ function button_runKS(ba) : ButtonControl
 			wave picwave=$name
 			
 			pigRunKS(picwave)
+			
 			
 			break
 		case -1: // control being killed
@@ -196,3 +237,5 @@ function button_pyScript(ba) : ButtonControl
 	endswitch
 	return 0
 end
+
+

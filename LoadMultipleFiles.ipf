@@ -88,13 +88,13 @@ Function/S LoadFiles([string dirpath])
 			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".csv")  == 0)
 				LoadWave/q/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/n=$fname path
 				// remove the 0 after loading (to avoid confusion)
-				// wave w = $(fname+"0")
-				// Rename w, $fname
+				wave w = $(fname+"0")
+				rename w, $fname
 			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt")  == 0)
 				LoadWave/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/n=$fname path
 				// remove 0 at the end of fname
-				// wave w = $(fname+"0")
-				// Rename w, $fname
+				wave w = $(fname+"0")
+				rename w, $fname
 			else
 				print fname
 				print "No recognized file type (tif, tiff, png, jpeg, csv, txt)"
