@@ -79,6 +79,7 @@ function runCommandOnWindowsCmd(string command)
 	print s_value
 end
 
+// 2
 function runCommandOnMacosShell(string command)
 	string igorcmdx
 	sprintf igorcmdx, "do shell script \"%s\"", command
@@ -87,7 +88,7 @@ function runCommandOnMacosShell(string command)
 end 
 
 
-// 2
+// 3
 // runs a python script into a movie using windows cmd
 function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie)
 	string igorcmd = path_to_python+" "+path_to_python_script+" "+path_to_movie
@@ -101,7 +102,7 @@ function runPythonScriptOnMovieWindows(string path_to_python, string path_to_pyt
 end
 
 
-// 3
+// 4
 // on mac this can be a pain, mostly because of the "do shell script"
 // you can do without it, but it can get quite confusing
 function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
@@ -124,7 +125,7 @@ function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_pytho
 end
 
 
-// 4
+// 5
 // look up for txt with python interpreter in default txt, otherwise create one
 function pigDefinePythonInterpreterPath()
 	// define path to pig directory in users procedures
@@ -170,7 +171,7 @@ function pigDefinePythonInterpreterPath()
 end
 
 
-// 5
+// 6
 function pigDefinePathToKS()
 	// path to pig directory in users procedures
 	string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
@@ -186,7 +187,8 @@ function pigDefinePathToKS()
 	string/g root:Packages:pig:pigPathToKS = pathToKS
 end
 
-// 6
+
+// 7
 // load movie
 function pigLoadMovie()
 
@@ -284,7 +286,7 @@ function pigLoadMovie()
 			killwaves/z $stimulusWave
 		endif
 	moveWave $stimulusWaveDefault, $stimulusWave
-	// normalize
+	// normalize (the y values are unnecessary large)
 	// wave wvi = $stimulusWave
 	// wvi = wvi / waveMax(wvi)
 	// wvi = (wvi - WaveMin(wvi)) / (WaveMax(wvi) - WaveMin(wvi))
@@ -293,7 +295,7 @@ function pigLoadMovie()
 end
 
 
-// 7
+// 8
 // select python script
 function pigSelectPythonScript()
 	// d: dialog, r: read only
@@ -326,7 +328,7 @@ function pigSelectPythonScript()
 end
 
 
-// 8
+// 9
 // run ks analysis
 function pigRunKS(wave movie)
 	string platform = IgorInfo(2)
@@ -372,9 +374,44 @@ function pigRunKS(wave movie)
 	endif
 	print "removed temporal files from: "+path_to_python_output
 	
+	// scale ks imported files
+	// location in data browser 
+	string movieWave = getWavesDataFolder(movie,2)
+	// to adjust temporal scaling
+	variable frameRate = numberByKey("frameRate",note(movie),"=","\r")
+	variable dt = 1/frameRate
+	// copyscales sourceWave, destinationWave
+	string wx = movieWave + "_reg"
+	copyscales $movieWave, $wx
+	setscale/p z, 0,  dt, "s", $wx
+	wx = wx + "_int"
+	copyscales $movieWave, $wx
+	setscale/p z, 0,  dt, "s", $wx
+	wx = wx + "_bc"
+	copyscales $movieWave, $wx
+	setscale/p z, 0,  dt, "s", $wx
+	// same base name, different terminations
+	string wx_df = wx + "_deltaf"
+	copyscales $movieWave, $wx_df
+	string wx_pm = wx + "_pixelroimask"
+	copyscales $movieWave, $wx_pm
+	string wx_rm = wx + "_roimask"
+	copyscales $movieWave, $wx_rm
+	// for these, time goes in the x axis
+	string wx_dff = wx + "_dff_traces"
+	string wx_gas = wx + "_gs_amps"
+	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
+	setscale/p x, 0,  dt, "s", $wx_dff
+	setscale/p x, 0,  dt, "s", $wx_gas
 end
 
-// 9
+
+// 10
+// get metadata from different kind of files - using python
+// TODO
+
+
+// 11
 // runs script on movie depending whether system is windows or macos
 function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, string pathToMovie])
 	// check platform
