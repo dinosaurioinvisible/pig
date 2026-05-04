@@ -1,7 +1,7 @@
 ﻿#pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
-#include "pig"
+// #include "pig"
 
 // panel for pig
 Window pigPanel(): Panel_pig
@@ -15,14 +15,14 @@ Window pigPanel(): Panel_pig
 	pigDefinePathToKS()
 	// main panel
 	// /w=(left, top, right, bottom)
-	NewPanel/w = (666,111,1055,400) as "pig — KS denoising"
+	NewPanel/w = (666,111,1055,400) as "Pig — KS analysis"
 	ModifyPanel cbRGB = (0, 13107, 26214)
 	SetDrawLayer UserBack
 	// ks: main box
 	SetDrawEnv linethick=0, fillfgc=(64824,27308,21496)
 	DrawRRect 20,35,370,70
 	SetDrawEnv fsize = 16, fstyle = 1, textrgb = (65535,65535,65535)
-	DrawText 33, 30, "pig - KS denoising"
+	DrawText 33, 30, "Pig - KS analysis"
 	// ks: load movie
 	Button Load, pos={30,43}, size={70,20}, proc=button_loadMovie, title="Load"
 	Button Load, fColor=(16191,18504,18761)
@@ -44,7 +44,7 @@ Window pigPanel(): Panel_pig
 	DrawRRect 20,105,370,175
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
 	DrawText 33,100,"More"
-	// other fxs: buttons
+	// other functions: buttons
 	Button button1,pos={30,115},size={75,20},proc=button1,title="01"
 	Button button1,help={"free button"}
 	Button button1,fColor=(16191,18504,18761)
@@ -85,7 +85,7 @@ Window pigPanel(): Panel_pig
 EndMacro
 
 Menu "Macros"
-	"pig - KS denoising", pigPanel()
+	"Load PIG - KS analysis", pigPanel()
 end
 
 // pig: select python interpreter - automatic at the start
@@ -239,3 +239,114 @@ function button_pyScript(ba) : ButtonControl
 end
 
 
+///////////////////////
+//							//
+//	  free buttons		//
+//							//
+///////////////////////
+
+
+// button 01
+function button1(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 01
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 02
+function button2(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 02
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 03
+function button3(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 03
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 04
+function button4(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 04
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 05
+function button5(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 05
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 06
+function button6(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 06
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 07
+function button7(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 07
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end

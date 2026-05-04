@@ -22,7 +22,7 @@ class KS_pipeline:
         alpha = 0.05,                   # threshold for p-value significance
         percentile = 70,                # for peaks
         min_distance = 3,               # between pixel peaks
-        synapse_size = 2,               # aprox. size in microns
+        synapse_size = 2,               # aprox. size in microns (µm x µm)
         # not definable from terminal
         sigma_smooth = 0,               # for gaussian filter in ΔF map
         sigma_fit = 1,                  # for 2d gaussian fit
@@ -32,7 +32,6 @@ class KS_pipeline:
         registration = True,
         bleach_correction = True,
         igor = True,
-        debug = False,
         mk_plots = False
         ):
             self.fpath = fpath
@@ -47,7 +46,6 @@ class KS_pipeline:
             self.lambda_reg = lambda_reg
             self.edge_margin = edge_margin
             self.igor = igor
-            self.debug = debug
             self.mk_plots = mk_plots
             self.run()
 
@@ -97,9 +95,6 @@ class KS_pipeline:
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
-        if self.debug:
-            print('in load_movie()')
-            import pdb; pdb.set_trace()
 
 
     def mk_names(self):
@@ -111,8 +106,7 @@ class KS_pipeline:
             os.mkdir(savedir)
 
 
-    # TODO: this could be done more systematically, for every metadata tag
-    # for now is enough like this though
+    # TODO: this should be done more systematically, for every metadata tag
     def get_metadata(self, movie, datatype):
         self.metadata = {}
         if datatype == 'ImageDescription':
@@ -165,7 +159,7 @@ class KS_pipeline:
     # normally a proper registration should update the mean
     # so that it register in relation to the previously registered movie
     # this way (1 reg) introduces a bias to the phase cross corr
-    # but it seems to work well enough nonetheless
+    # but is faster & it seems to work well enough nonetheless
     def register(self, upsample_factor=10):
         # static reference
         reference = self.movie.mean(axis=0)
@@ -175,14 +169,12 @@ class KS_pipeline:
             movie_reg[i] = shift(self.movie[i], shift_est)
         # to avoid inheritance problems
         self.movie = movie_reg.copy()
-        if self.debug:
-            print('in register()')
-            import pdb; pdb.set_trace()
         if self.igor:
             self.savepath += '_reg'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
+    # TODO: fix to squaring by µm, instead of n pixels
     # we know that nrows <= ncols
     def interpolate(self):
         # interpolates to make it squared (x = 128)
@@ -190,9 +182,6 @@ class KS_pipeline:
         # order 1: bilinear
         self.movie = zoom(self.movie, zoom=(1,zoom_ratio,1), order=1)
         self.nrows, self.ncols = self.movie.shape[1:]
-        if self.debug:
-            print('in interpolate()')
-            import pdb; pdb.set_trace()
         if self.igor:
             self.savepath += '_int'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
@@ -218,14 +207,12 @@ class KS_pipeline:
         else:
             # same but rescaled (otherwise you risk normalizing)
             self.movie = self.movie * (fit_curve[0] / np.maximum(fit_curve[:,None,None],1e-8))
-        if self.debug:
-            print('in bleach_correction()')
-            import pdb; pdb.set_trace()
         if self.igor:
             self.savepath += '_bc'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
+    # TODO: incorporate synapse size?
     # define the radius for 2d gaussian demixing
     def define_roi_size(self):
         # pixel size in microns
@@ -234,7 +221,7 @@ class KS_pipeline:
         # synapses won't fit exactly the pixel grid -> |(| |)|
         self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
         # if roi radius < min distance between peaks
-        # then the demixing wont make sense
+        # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
             self.min_distance = int(self.roi_radius) + 1
 
@@ -259,9 +246,6 @@ class KS_pipeline:
         # remaining points are baseline/rest indices
         self.baseline_idxs = np.where(self.baseline==0)[0]
         self.activity_idxs = self.baseline.nonzero()[0]
-        if self.debug:
-            print('in stim_transitions()')
-            import pdb; pdb.set_trace()
 
 
     # TODO: is percentile the best threshold abs?
@@ -278,9 +262,6 @@ class KS_pipeline:
                             min_distance=self.min_distance,
                             threshold_abs=threshold_abs,
                             exclude_border=self.edge_margin)
-        if self.debug:
-            print('in deltaf_map()')
-            import pdb; pdb.set_trace()
         if self.igor:
             tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map)
 
@@ -339,15 +320,10 @@ class KS_pipeline:
             self.synapses_mask_rois[disk] = np.where(self.synapses_mask_rois[disk] == -1, ei, self.synapses_mask_rois[disk])
 
         # export data
-        if self.debug:
-            print('in ks_distance()')
-            import pdb; pdb.set_trace()
         if self.igor:
-            df1 = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
-            df2 = pd.DataFrame(self.synapses, columns=["row","col"])
-            df1.to_csv(f'{self.savepath}_peaks.csv')
-            df2.to_csv(f'{self.savepath}_synapses.csv')
-            tf.imwrite(f'{self.savepath}_pixelroimask.tif', self.synapses_mask_pixels)
+            dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
+            dfx.to_csv(f'{self.savepath}_synapses.csv')
+            tf.imwrite(f'{self.savepath}_pixelmask.tif', self.synapses_mask_pixels)
             tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask_rois)
         # txt info
         if self.igor:
@@ -416,11 +392,6 @@ class KS_pipeline:
         if self.igor:
             # the transposition is just for visualization
             np.savetxt(f'{self.savepath}_gs_amps.csv', self.gs_amps.T, delimiter=',')
-        if self.debug:
-            print('in ridge_demix()')
-            # to check if lambda reg is ok (if >> 1, lambda reg is too small)
-            print(f'> gs_cov condition number: {np.linalg.cond(gs_cov):.1f}')
-            import pdb; pdb.set_trace()
 
 
     # i assume is the same as only the first window
@@ -435,9 +406,6 @@ class KS_pipeline:
             self.dff_traces.append((amp-f0)/f0)
         self.dff_traces = np.array(self.dff_traces)
         # save
-        if self.debug:
-            print('in compute_dff_traces()')
-            import pdb; pdb.set_trace()
         if self.igor:
             tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
 
@@ -538,27 +506,9 @@ class KS_pipeline:
         plt.plot(self.stimulus)
         plt.show()
 
-    # TODO: understand this part well
-    # def plot_cross_talk_comparison(self,title='Spatial cross-talk comparison'):
-      # get traces from same pixels before demixing
-      # compute correlation matrices & spatial distances
 
 
-
-
-
-# for testing & debugging
-# fpath = '/Users/f/Dropbox/_r66y/r66xe/2p_data/jose_ca_layering/100226/F1/STR/CR_1HZ_AF10016_STR.tif'
-# fpath = '/Users/f/Desktop/100226/F1/STR/STEP_AF10017_STR.tif'
-# fpath = '/Users/f/Desktop/100226/F1/STR/TF_AF10018-STR.tif'
-# fpath = '/Users/f/Dropbox/_r66y/r66xe/2p_data/glu_a2/Steps_pre_AF10_a1014.tif'
-# fpath =  "C:\\Users\\Fernando\\zf\\data\\data_mp\\HUCxiGlu_250625\\f1_ot1_z13_r1_00001.tif"
-# fpath = "C:\\Users\\Fernando\\zf\\data\\data_jose\\glu_a1\\TF_pre_AF10_a1002.tif"
-# fpath = "C:\\Users\\Fernando\\zf\\data\\data_pawel\\Pawel Glutamate framescan\\080725_huc_glu\\S3_c25_1Hz001.tif"
-# ox = KS_pipeline(fpath)
-
-# only if you're using this as a totally independent subprocess
-
+# to run from terminal
 if __name__ == "__main__":
     path_to_movie = sys.argv[1]
     fov = 610
@@ -567,7 +517,6 @@ if __name__ == "__main__":
     min_distance = 3
     synapse_size = 2
     igor = True
-    debug = False
     mk_plots = False
     for ei,arg in enumerate(sys.argv):
         if arg.startswith('--fov='):
@@ -582,8 +531,6 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg == '--not_igor':
             igor = False
-        if arg == '--debug':
-            debug = True
         if arg == '--make_plots':
             mk_plots = True
     x = KS_pipeline(fpath=path_to_movie,
@@ -593,7 +540,6 @@ if __name__ == "__main__":
         min_distance=min_distance,
         synapse_size=synapse_size,
         igor=igor,
-        debug=debug,
         mk_plots=mk_plots,
         )
 

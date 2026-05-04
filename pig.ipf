@@ -1,8 +1,11 @@
 ﻿#pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
-#include "LoadMultipleFiles"
+#include <ProcedureBrowser>
+#include "pigPanel"
+#include "pigLoadMultipleFiles"
 #include "Ch2LineRes"
+#include "LoadScanImage"
 
 // ~ index
 // 1. runCommandOnWindowsCmd, runCommandOnMacosShell - to run single commands
@@ -279,18 +282,15 @@ function pigLoadMovie()
 	
 	// mk stimulus wave
 	waveCh2lineRes($movieName)
-	string stimulusWaveDefault = "root:timewave"
-	string stimulusWave = movieName+"_stim"
+	string cwd = getDataFolder(1)
+	string stimulusWaveDefault = cwd+"timewave"
+	string stimulusWaveCh2res = movieName+"_stim"
 	// if it exists, erase (otherwise yields error)
-		if (waveExists($stimulusWave))
-			killwaves/z $stimulusWave
+		if (waveExists($stimulusWaveCh2res))
+			killwaves/z $stimulusWaveCh2res
 		endif
-	moveWave $stimulusWaveDefault, $stimulusWave
-	// normalize (the y values are unnecessary large)
-	// wave wvi = $stimulusWave
-	// wvi = wvi / waveMax(wvi)
-	// wvi = (wvi - WaveMin(wvi)) / (WaveMax(wvi) - WaveMin(wvi))
-	
+	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
+		
 	print "\nloaded movie from: "+filePath
 end
 
@@ -403,6 +403,23 @@ function pigRunKS(wave movie)
 	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
 	setscale/p x, 0,  dt, "s", $wx_dff
 	setscale/p x, 0,  dt, "s", $wx_gas
+	
+	// redimension stimulus wave from python
+	string stimulusWaveKS = movieWave+"_stimulus"
+	string stimulusWave = movieWave+"_sti"
+	// if it exists, erase (otherwise yields error)
+		if (waveExists($stimulusWave))
+			killwaves/z $stimulusWave
+		endif
+	// have to create a new wave to get rid of col1
+	variable nrows = Dimsize($stimulusWaveKS,0)
+	make/o/n=(nrows) $stimulusWave 
+	wave sti = $stimulusWave
+	wave stiKS = $stimulusWaveKS
+	sti = stiKS[p][1]
+	setScale/p x 0, dt, "s", sti
+	killwaves stiKS
+	
 end
 
 
