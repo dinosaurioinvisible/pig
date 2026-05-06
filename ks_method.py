@@ -53,7 +53,8 @@ class KS_pipeline:
         # load & pre-process
         self.load_movie()
         self.register()
-        self.interpolate()
+        # self.interpolate()
+        self.interpolate_square()
         self.bleach_correction()
         # setup search
         self.define_roi_size()
@@ -120,6 +121,8 @@ class KS_pipeline:
         if datatype == 'ImageDescription':
             self.frameRate = float(self.metadata["state.acq.frameRate"])
             self.zoomFactor = float(self.metadata["state.acq.zoomFactor"])
+            self.scanAngleMultFast = float(self.metadata["state.acq.scanAngleMultiplierFast"])
+            self.scanAngleMultSlow = float(self.metadata["state.acq.scanAngleMultiplierSlow"])
             # print("Field of view assumed to be 610, but do check this")
         if datatype == 'Software':
             # Software metadata is more accurate, so no exactly 20hz, for example
@@ -174,7 +177,6 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # TODO: fix to squaring by µm, instead of n pixels
     # we know that nrows <= ncols
     def interpolate(self):
         # interpolates to make it squared (x = 128)
@@ -182,6 +184,66 @@ class KS_pipeline:
         # order 1: bilinear
         self.movie = zoom(self.movie, zoom=(1,zoom_ratio,1), order=1)
         self.nrows, self.ncols = self.movie.shape[1:]
+        # pixel size
+        self.pixelSize = self.fov/self.nrows/self.zoomFactor
+        # not used
+        self.or_nrows, self.or_ncols = self.movie.shape[1:]
+        self.movieSize_x = self.fov / self.zoomFactor * self.scanAngleMultFast
+        self.movieSize_y = self.fov / self.zoomFactor * self.scanAngleMultSlow
+        self.pixel_sx = self.movieSize_x / self.or_ncols
+        self.pixel_sy = self.movieSize_y / self.or_nrows
+        self.pixelSize_x = self.movieSize_x / self.ncols
+        self.pixelSize_y = self.movieSize_y / self.nrows
+        # save
+        if self.igor:
+            self.savepath += '_int'
+            tf.imwrite(f'{self.savepath}.tif', self.movie)
+
+
+    # interpolates to make pixels squared
+    # this is necessary for the demixing to work correctly
+    # we know that nrows <= ncols, but we don't know the real physical shape
+    def interpolate_square(self, upscale=True):
+        # get real physical sizes of pixels (in microns)
+        self.or_nrows, self.or_ncols = self.movie.shape[1:]
+        self.movieSize_x = self.fov / self.zoomFactor * self.scanAngleMultFast
+        self.movieSize_y = self.fov / self.zoomFactor * self.scanAngleMultSlow
+        # original sizes: x:cols, y:rows
+        self.pixel_sx = self.movieSize_x / self.or_ncols   # horizontal
+        self.pixel_sy = self.movieSize_y / self.or_nrows   # vertical
+
+        # zoom operates on movie dims (frames, rows, cols)
+        # 0.34/0.82 = 0.41
+        row_zoom = self.pixel_sy / self.pixel_sx      # horizontal:vertical ratio
+        # 0.82/0.34 = 2.39
+        col_zoom = self.pixel_sx / self.pixel_sy      # vertical:horizontal ratio
+        # order 1: bilinear
+        # 0.82 > 0.34
+        if self.pixel_sx > self.pixel_sy:
+            # pixels are larger horizontally
+            if upscale:
+                # add columns
+                self.movie = zoom(self.movie, zoom=(1, row_zoom, 1), order=1)
+            else:
+                # remove rows
+                self.movie = zoom(self.movie, zoom=(1, 1, row_zoom), order=1)
+        # to avoid sx == sy case
+        elif self.pixel_sx < self.pixel_sy:
+            # pixels are larger vertically
+            if upscale:
+                # add rows
+                self.movie = zoom(self.movie, zoom=(1, col_zoom, 1), order=1)
+            else:
+                # remove columns
+                self.movie = zoom(self.movie, zoom=(1, 1, col_zoom), order=1)
+
+        # new sizes and shapes
+        self.nrows, self.ncols = self.movie.shape[1:]
+        self.pixelSize_x = self.movieSize_x / self.ncols
+        self.pixelSize_y = self.movieSize_y / self.nrows
+        # pixel size in microns (assuming squared pixels)
+        self.pixelSize = (self.pixelSize_x + self.pixelSize_y)/2
+        # save
         if self.igor:
             self.savepath += '_int'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
@@ -212,11 +274,9 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # TODO: incorporate synapse size?
+    # TODO: incorporate synapse size from Igor?
     # define the radius for 2d gaussian demixing
     def define_roi_size(self):
-        # pixel size in microns
-        self.pixelSize = self.fov/self.nrows/self.zoomFactor
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
         self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
@@ -224,6 +284,7 @@ class KS_pipeline:
         # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
             self.min_distance = int(self.roi_radius) + 1
+
 
     # decouple baseline & activity
     # delta: threshold to count as deviation from baseline
@@ -328,13 +389,23 @@ class KS_pipeline:
         # txt info
         if self.igor:
             f = open(f'{self.savepath}_info.txt', 'w')
-            f.write(f'fov={self.fov}\n')
             f.write(f'nframes={self.nframes}\n')
             f.write(f'frameRate={self.frameRate}\n')
             f.write(f'duration={self.duration}\n')
             f.write(f'dt={self.dt}\n')
-            f.write(f'zoomFactor={self.zoomFactor}\n')
+            f.write(f'fov={self.fov}\n')
+            f.write(f'movieSize_x={self.movieSize_x}\n')
+            f.write(f'movieSize_y={self.movieSize_y}\n')
+            f.write(f'orig_ncols={self.or_ncols}\n')
+            f.write(f'orig_nrows={self.or_nrows}\n')
+            f.write(f'orig_pixelSize_x={self.pixel_sx}\n')
+            f.write(f'orig_pixelSize_y={self.pixel_sy}\n')
+            f.write(f'nRows={self.nrows}\n')
+            f.write(f'nCols={self.ncols}\n')
+            f.write(f'pixelSize_x={self.pixelSize_x}\n')
+            f.write(f'pixelSize_y={self.pixelSize_y}\n')
             f.write(f'pixelSize={self.pixelSize}\n')
+            f.write(f'zoomFactor={self.zoomFactor}\n')
             f.write(f'roiRadius={self.roi_radius}\n')
             f.write(f'nsynapses={self.synapses.shape[0]}')
             f.close()

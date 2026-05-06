@@ -72,10 +72,10 @@ Window pigPanel(): Panel_pig
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
 	DrawText 33,205,"pig - others"
 	// pig: choose script
-	Button pyScript, pos={30,220}, size={100,20}, proc=button_pyScript, title="choose script"
-	Button pyScript, fColor=(16191,18504,18761)
+	Button pigScript, pos={30,220}, size={100,20}, proc=button_pigScript, title="choose script"
+	Button pigScript, fColor=(16191,18504,18761)
 	// pig: run
-	Button pigRun, pos={285,220}, size={75,20}, proc=button_pyScript, title="run"
+	Button pigRun, pos={270,220}, size={90,20}, proc=button_pigRun, title="run"
 	Button pigrun, fColor=(16191,18504,18761)
 	// pig: box for interpreter path
 	SetVariable pigPathToInterpreter, pos={30,245}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
@@ -224,12 +224,37 @@ end
 
 
 // pig: select python script
-function button_pyScript(ba) : ButtonControl
+function button_pigScript(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
 			pigSelectPythonScript()
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+
+// pig: run python script on Igor wave
+function button_pigRun(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			string list=wavelist("*",";","DIMS:3")
+			string name
+			prompt name, "pick movie (in current data folder)", popup,list
+			doprompt "pick movie ", name
+				if(V_flag==1)
+					Abort
+				endif	
+			wave picwave=$name
+			
+			// TODO 
 			
 			break
 		case -1: // control being killed
