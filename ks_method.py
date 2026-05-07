@@ -56,6 +56,7 @@ class KS_pipeline:
         # load & pre-process
         self.load_movie()
         self.register()
+        # if False:
         if self.square:
             self.interpolate_square()
         else:
@@ -207,52 +208,53 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # interpolates to make pixels squared
-    # this is necessary for the demixing to work correctly
-    # we know that nrows <= ncols, but we don't know the real physical shape
+    # TODO: for now only the upscaling is working
+    # it's upscaling because we're increasing the number of pixels in some axis
+    # rather than an interpolatetion, it's making the pixels squared 
+    # so it is a pixel aspect ratio correction (or anisotropic resample)
+    # this is important for the demixing to work correctly
+    # otherwise the gaussians could be fitting ovals, instead of circles
+    # which wouldn't match the point spread function 
+    # which is given by the light produced by the reporter
     def interpolate_square(self, upscale=True):
         # get real physical sizes of pixels (in microns)
         self.or_nrows, self.or_ncols = self.movie.shape[1:]
-        self.movieSize_x = self.fov / self.zoomFactor * self.scanAngleMultFast
-        self.movieSize_y = self.fov / self.zoomFactor * self.scanAngleMultSlow
-        # original sizes: x:cols, y:rows
-        self.pixel_sx = self.movieSize_x / self.or_ncols   # horizontal
-        self.pixel_sy = self.movieSize_y / self.or_nrows   # vertical
+        self.fovx = self.fov / self.zoomFactor * self.scanAngleMultFast
+        self.fovy = self.fov / self.zoomFactor * self.scanAngleMultSlow
+        # pixel sizes: px:cols, py:rows
+        self.px = self.fovx / self.or_ncols   # horizontal
+        self.py = self.fovy / self.or_nrows   # vertical
 
-        # zoom operates on movie dims (frames, rows, cols)
-        # 0.34/0.82 = 0.41
-        row_zoom = self.pixel_sy / self.pixel_sx      # horizontal:vertical ratio
-        # 0.82/0.34 = 2.39
-        col_zoom = self.pixel_sx / self.pixel_sy      # vertical:horizontal ratio
-        # order 1: bilinear
-        # 0.82 > 0.34
-        if self.pixel_sx > self.pixel_sy:
-            # pixels are larger horizontally
-            if upscale:
-                # add columns
-                self.movie = zoom(self.movie, zoom=(1, row_zoom, 1), order=1)
-            else:
-                # remove rows
-                self.movie = zoom(self.movie, zoom=(1, 1, row_zoom), order=1)
-        # to avoid sx == sy case
-        elif self.pixel_sx < self.pixel_sy:
-            # pixels are larger vertically
-            if upscale:
-                # add rows
-                self.movie = zoom(self.movie, zoom=(1, col_zoom, 1), order=1)
-            else:
-                # remove columns
-                self.movie = zoom(self.movie, zoom=(1, 1, col_zoom), order=1)
-
+        # if pixels are smaller vertically
+        if self.py < self.px:
+            # then we need to make px_eq = py
+            # and because: fovx = px_eq * ncols_sq
+            self.ncols_sq = int(round(self.fovx/self.py))
+            # now we can get px_sq (because npixels has to be int)
+            # given: fovx = px_sq * ncols_sq
+            self.px_sq = self.fovx / self.ncols_sq
+            # zoom operates on movie dims (frames, rows, cols)
+            # colZoom is the factor by which we need to increase the number of cols
+            colZoom = self.ncols_sq / self.or_ncols
+            # order 1 = bilinear
+            self.movie = zoom(self.movie, zoom=(1, 1, colZoom), order=1)
+            # for metadata
+            self.py_sq = self.py
+        # same, but viceversa
+        elif self.px < self.py:
+            self.nrows_sq = int(self.fovy/self.px)
+            self.py_sq = self.fovy / self.nrows_sq
+            rowZoom = self.nrows_sq / self.or_nrows
+            self.movie = zoom(self.movie, zoom=(1, rowZoom, 1), order=1)
+            self.px_sq = self.px
+        # else they're already squared
         # new sizes and shapes
         self.nrows, self.ncols = self.movie.shape[1:]
-        self.pixelSize_x = self.movieSize_x / self.ncols
-        self.pixelSize_y = self.movieSize_y / self.nrows
         # pixel size in microns (assuming squared pixels)
-        self.pixelSize = (self.pixelSize_x + self.pixelSize_y)/2
+        self.pixelSize = (self.px + self.py)/2
         # save
         if self.igor:
-            self.savepath += '_int'
+            self.savepath += '_isq'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
@@ -401,18 +403,20 @@ class KS_pipeline:
             f.write(f'duration={self.duration}\n')
             f.write(f'dt={self.dt}\n')
             f.write(f'fov={self.fov}\n')
-            f.write(f'movieSize_x={self.movieSize_x}\n')
-            f.write(f'movieSize_y={self.movieSize_y}\n')
+            f.write(f'zoomFactor={self.zoomFactor}\n')
+            f.write(f'scanAngleMultFast={self.self.scanAngleMultFast}\n')
+            f.write(f'scanAngleMultSlow={self.self.scanAngleMultSlow}\n')
+            f.write(f'fov_x={self.fovx}\n')
+            f.write(f'fov_y={self.fovy}\n')
             f.write(f'orig_ncols={self.or_ncols}\n')
             f.write(f'orig_nrows={self.or_nrows}\n')
-            f.write(f'orig_pixelSize_x={self.pixel_sx}\n')
-            f.write(f'orig_pixelSize_y={self.pixel_sy}\n')
+            f.write(f'orig_pixelSize_x={self.px}\n')
+            f.write(f'orig_pixelSize_y={self.py}\n')
             f.write(f'nRows={self.nrows}\n')
             f.write(f'nCols={self.ncols}\n')
-            f.write(f'pixelSize_x={self.pixelSize_x}\n')
-            f.write(f'pixelSize_y={self.pixelSize_y}\n')
-            f.write(f'pixelSize={self.pixelSize}\n')
-            f.write(f'zoomFactor={self.zoomFactor}\n')
+            f.write(f'pixelSize_x={self.px_sq}\n')
+            f.write(f'pixelSize_y={self.py_sq}\n')
+            f.write(f'pixelSize_av={self.pixelSize}\n')
             f.write(f'roiRadius={self.roi_radius}\n')
             f.write(f'nsynapses={self.synapses.shape[0]}')
             f.close()

@@ -25,17 +25,25 @@ def get_scanImage_metadata(path_to_movie,igor=False):
         tag_data = x.pages[0].tags[tag.name].value
         # this and software have a lot of data
         if tag.name == 'ImageDescription':
-            paired_data = tag_data.split('\r')
             paired_data = tag_data.split('\n')
+            # sometimes they use \r, sometimes \n
+            if len(paired_data) == 1:
+                paired_data = tag_data.split('\r')
             for i in paired_data:
-                k,v = i.split('=')
-                metadata[f'{tag.name}.{k.strip()}'] = v.strip()
+                try:
+                    k,v = i.split('=')
+                    metadata[f'{tag.name}.{k.strip()}'] = v.strip()
+                except:
+                    metadata[f'{tag.name}.{k.strip()}'] = i
         elif tag.name == 'Software':
-            paired_data = tag_data.split('\r')
-            paired_data = tag_data.split('\n')
+            if len(paired_data) == 1:
+                paired_data = tag_data.split('\r')
             for i in paired_data:
-                k,v = i.split('=')
-                metadata[f'{tag.name}.{k.strip()}'] = v.strip()
+                try:
+                    k,v = i.split('=')
+                    metadata[f'{tag.name}.{k.strip()}'] = v.strip()
+                except:
+                    metadata[f'{tag.name}.{k.strip()}'] = i
         # artist also has a lot of data, in json format
         elif tag.name == 'Artist':
             import json
@@ -69,6 +77,7 @@ def get_scanImage_metadata(path_to_movie,igor=False):
 # this, or any other testing movie has to be commented out
 # otherwise Igor function won't work
 # movie = "/Users/f/Desktop/eemovie/F2C1_Dir12_5Hz_00001.tif"
+# movie = "//Users/f/desktop/iGluSnFR-4s tests/050526/AF10_HUC/glusnfr4_CR_20Hz004.tif"
 # get_scanImage_metadata(movie)
 
 # to run from terminal

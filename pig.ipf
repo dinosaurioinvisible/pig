@@ -6,6 +6,7 @@
 #include "pigLoadMultipleFiles"
 #include "Ch2LineRes"
 #include "LoadScanImage"
+#include "pigGetMetadata"
 
 // ~ index
 // 0. brief comment
@@ -22,7 +23,7 @@
 // 11. pigRunPythonScriptOnMovie 
 
 
-// 0
+// 0.
 // we want to define paths that can be reused
 // for the path to the python interpreter: 
 // there is a function that may be called only once
@@ -32,7 +33,7 @@
 // when pressing the 'python' button
 
 
-// 1
+// 1.
 // basic fx for running single commands in macos shell & windows cmd
 // print s_value isn't really needed, can be ommitted, but may be useful
 function runCommandOnWindowsCmd(string command)
@@ -40,7 +41,7 @@ function runCommandOnWindowsCmd(string command)
 	print s_value
 end
 
-// 2
+// 2.
 function runCommandOnMacosShell(string command)
 	string igorcmdx
 	sprintf igorcmdx, "do shell script \"%s\"", command
@@ -49,7 +50,7 @@ function runCommandOnMacosShell(string command)
 end 
 
 
-// 3
+// 3.
 // runs a python script into a movie using windows cmd
 function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie)
 	string igorcmd = path_to_python+" "+path_to_python_script+" "+path_to_movie
@@ -63,7 +64,7 @@ function runPythonScriptOnMovieWindows(string path_to_python, string path_to_pyt
 end
 
 
-// 4
+// 4.
 // on mac this can be a pain, mostly because of the "do shell script"
 // you can do without it, but it can get quite confusing
 function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
@@ -86,7 +87,7 @@ function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_pytho
 end
 
 
-// 5
+// 5.
 // look up for txt with python interpreter in default txt, otherwise create one
 function pigDefinePythonInterpreterPath()
 	// define path to pig directory in users procedures
@@ -132,7 +133,7 @@ function pigDefinePythonInterpreterPath()
 end
 
 
-// 6
+// 6.
 function pigDefinePathToKS()
 	// path to pig directory in users procedures
 	string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
@@ -149,7 +150,7 @@ function pigDefinePathToKS()
 end
 
 
-// 7
+// 7.
 // load movie
 function pigLoadMovie()
 
@@ -186,8 +187,16 @@ function pigLoadMovie()
 	// scaling would void the picture with nans
 	// so it's better to get whatever metadata there is & abort for now
 	if (numtype(zoomFactor) == 2)
+		note $movieName, "expDate="
+		note $movieName, "msPerLine="
+		note $movieName, "frameRate="
+		note $movieName, "dt="
+		note $movieName, "zoomFactor="
+		note $movieName, "scanAngleMultiplierFast="
+		note $movieName, "scanAngleMultiplierSlow="
 		note $movieName, "fdir="+s_path
 		note $movieName, "fname="+s_filename
+		note $movieName, "basename="+fname
 		string fpath = s_path+s_filename
 		note $movieName, "fpath="+fpath
 		note $movieName, ""
@@ -215,11 +224,14 @@ function pigLoadMovie()
 	note $movieName, "expDate="+expDate
 	note $movieName, "msPerLine="+num2str(msPerLine)
 	note $movieName, "frameRate="+num2str(frameRate)
+	variable dt = 1/frameRate
+	note $movieName, "dt="+num2str(dt)
 	note $movieName, "zoomFactor="+num2str(zoomFactor)
 	note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
 	note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
 	note $movieName, "fdir="+s_path
 	note $movieName, "fname="+s_filename
+	note $movieName, "basename="+fname
 	string filePath = s_path+s_filename
 	note $movieName, "fpath="+filePath
 	note $movieName, ""
@@ -263,7 +275,7 @@ function pigLoadMovie()
 end
 
 
-// 8
+// 8.
 // select python script
 function pigSelectPythonScript()
 	// d: dialog, r: read only
@@ -296,7 +308,7 @@ function pigSelectPythonScript()
 end
 
 
-// 9
+// 9.
 // run ks analysis
 function pigRunKS(wave movie)
 	string platform = IgorInfo(2)
@@ -391,9 +403,15 @@ function pigRunKS(wave movie)
 end
 
 
-// 10
+// 10.
 // to load python outputs and then remove temporal folders
 function pigLoadAndRemoveTempFolder(string pathToTempFolder)
+	// quick check
+	print "pathToTempFolder= " + pathToTempFolder
+	if (strlen(pathToTempFolder)==0)
+		print("\nnull path\n")
+		abort
+	endif
 	// load
 	LoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder

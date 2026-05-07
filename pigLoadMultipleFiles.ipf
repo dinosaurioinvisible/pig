@@ -17,6 +17,12 @@ Function/S LoadFiles([string dirpath])
 	string sep = "\r"
 	string platform = IgorInfo(2)
 
+	// quick check
+	print "dirpath= " + dirpath
+	if (strlen(dirpath)==0)
+		print("\nnull path in LoadFiles()\n")
+		abort
+	endif
 	// look for path
 	if (paramIsDefault(dirpath) == 0)
 		Print "\nauto loading from: "+dirpath
@@ -90,14 +96,13 @@ Function/S LoadFiles([string dirpath])
 				// remove the 0 after loading (to avoid confusion)
 				wave w = $(fname+"0")
 				rename w, $fname
-			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt")  == 0)
-				LoadWave/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/n=$fname path
-				// to avoid errors
-				if (waveExists($fname))
-					killwaves/z $fname
-				endif
+			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt")  == 0)	
+				LoadWave/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/o/n=$fname path
 				// remove 0 at the end of fname
 				wave w = $(fname+"0")
+				if (WaveExists($fname))
+		      	KillWaves $fname
+			   endif
 				rename w, $fname
 			else
 				print fname

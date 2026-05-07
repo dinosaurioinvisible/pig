@@ -347,7 +347,7 @@ function button5(ba) : ButtonControl
 					Abort
 				endif	
 			wave picwave=$name
-			pigGetMetadata(picwave)			
+			pigGetMetadata(picwave)
 			// appendMetadata(picwave)
 			
 			break
