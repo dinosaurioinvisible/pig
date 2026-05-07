@@ -264,7 +264,7 @@ function pigLoadMovie()
 	waveCh2lineRes($movieName)
 	string cwd = getDataFolder(1)
 	string stimulusWaveDefault = cwd+"timewave"
-	string stimulusWaveCh2res = movieName+"_stim"
+	string stimulusWaveCh2res = movieName+"_ch2stim"
 	// if it exists, erase (otherwise yields error)
 		if (waveExists($stimulusWaveCh2res))
 			killwaves/z $stimulusWaveCh2res
@@ -358,22 +358,35 @@ function pigRunKS(wave movie)
 	// location in data browser 
 	string movieWave = getWavesDataFolder(movie,2)
 	// to adjust temporal scaling
-	variable frameRate = numberByKey("frameRate",note(movie),"=","\r")
-	variable dt = 1/frameRate
+	variable dt = numberByKey("dt",note(movie),"=","\r")
 	// copyscales sourceWave, destinationWave
 	string wx = movieWave + "_reg"
 	copyscales $movieWave, $wx
 	setscale/p z, 0,  dt, "s", $wx
-	wx = wx + "_int"
-	copyscales $movieWave, $wx
-	setscale/p z, 0,  dt, "s", $wx
+	// this wave name can change
+	// _int is for interpolation method
+	string wx_int = wx + "_int"
+	// _isq is for pixel squaring
+	string wx_isq = wx + "_isq"
+	if (WaveExists($wx_int))
+   	CopyScales $movieWave, $wx_int
+   	setscale/p z, 0,  dt, "s", $wx_int
+   	wx = wx + "_int"
+	elseif (WaveExists($wx_isq))
+    	CopyScales $movieWave, $wx_isq
+    	setscale/p z, 0,  dt, "s", $wx_isq
+    	wx = wx + "_isq"
+	else
+   	print "\ncouldn't find aspect correction file\n"
+	endif
+	// bleach correction	
 	wx = wx + "_bc"
 	copyscales $movieWave, $wx
 	setscale/p z, 0,  dt, "s", $wx
 	// same base name, different terminations
 	string wx_df = wx + "_deltaf"
 	copyscales $movieWave, $wx_df
-	string wx_pm = wx + "_pixelroimask"
+	string wx_pm = wx + "_pixelmask"
 	copyscales $movieWave, $wx_pm
 	string wx_rm = wx + "_roimask"
 	copyscales $movieWave, $wx_rm
@@ -399,7 +412,6 @@ function pigRunKS(wave movie)
 	sti = stiKS[p][1]
 	setScale/p x 0, dt, "s", sti
 	killwaves stiKS
-	
 end
 
 
