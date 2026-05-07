@@ -8,60 +8,18 @@
 #include "LoadScanImage"
 
 // ~ index
-// 1. runCommandOnWindowsCmd, runCommandOnMacosShell - to run single commands
-// 2. runPythonScriptOnMovieWindows - to run a script on a movie in windows
-// 3. runPythonScriptOnMovieMacOs - to run a script on a movie in macos
-// 4. definePythonInterpreterPath - to look up for a python interp.
-// 5. pigLoadMovie - simpler than ART Load, for python processing
-// 6. pigSelectPythonScript - to choose a python script
-// 7. pigRunPythonScriptOnMovie - general fx
-
-
-// this is a small manual, for debugging or testing:
-// (these examples kind of go increasing in difficulty)
-// to execute a line command in the macos terminal from Igor:
-	// string igorcmd0
-	// command0 = "here goes any shell command"
-	// sprintf igorcmd0, "do shell script \"%s\"", command0
-	// executeScriptText/z igorcmd0
-	// print s_value
-
-	// other commands:
-	// create an empty file
-	// command0 = "touch ~/Desktop/test.txt"
-	// create/write something into a file (> overwrites, >> appends new line)
-	// command0 = "echo is invisibility a super power really?  >> ~/Desktop/test.txt"
-	// you can put things together using &&
-	// command0 = command0 = "touch ~/Desktop/test2.txt && echo im hungry now >> ~/Desktop/test2.txt"
-	// note that you can do the same without writing out, for text-like output
-	// command0 = "ls -a"
-	// but then you have to look at it using:
-	// print s_value 
-	// (usually this shows issues if some, or nothing if fine)
-	
-	// now then, to look for python interpreters, first you'd do things like:
-	// command0 = "find ~ name pyvenv.cfg -maxdepth 3 2>/dev//null >> test2.txt"
-	// command0 = conda env list
-	// for venvs or conda envs, respectively. Or, for system interepreters:
-	// command0 = "which -a python3 >> ~/Desktop/test.txt"
-	// but, results prob. be different from results in the actual terminal
-	// in fact, for conda/venvs you most likely will see "exited with non-zero status" 
-	// this is basically "not found", because Igor's $PATH is different, you can check with:
-	// command0 = "echo $PATH >> ~/Desktop/test.txt"
-	// or simply:
-	// command0 = "echo $PATH" (and then checking s_value after executing)
-	// so, either we pass the location to the interpreter (text or window) 
-	// or search in common locations, like conda, miniconda, homebrew, etc
-	// here we'll try to guess, and if this fails, ask for user input
-	
-	// note on windows:
-	// in windows calling programs is more straightforward
-	// and you can do things like:
-	// executeScriptText "notepad.exe"
-	// so you don't really need a function for that
-	// however, calling cmd itself has to be done explicitely
-	// so we need to use 'cmd.exe /c' for cmd instructions like echo, >>, etc.
-	// unlike macos which passes the command directly to the shell (bash/zsh)
+// 0. brief comment
+// 1. runCommandOnWindowsCmd
+// 2. runCommandOnMacosShell 
+// 3. runPythonScriptOnMovieWindows
+// 4. runPythonScriptOnMovieMacOs
+// 5. pigDefinePythonInterpreterPath
+// 6. pigDefinePathToKS
+// 7. pigLoadMovie
+// 8. pigSelectPythonScript
+// 9. pigRunKS 
+// 10. pigLoadAndRemoveTempFolder
+// 11. pigRunPythonScriptOnMovie 
 
 
 // 0
@@ -212,9 +170,9 @@ function pigLoadMovie()
 	// move to its own folder
 	moveWave $s_filename, $movieName
 	
-	// retrieve necessary info
+	// retrieve necessary info	
 	// this works with the older version of scan image only
-	// print s_info
+	print s_info
 	string metadata = s_info
 	// get info - to access note info: print note($"movieName")
 	string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
@@ -223,6 +181,20 @@ function pigLoadMovie()
 	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
 	variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
 	variable angleSlow = numberByKey("state.acq.scanAngleMultiplierSlow",s_info,"=","\r")
+	
+	// if this fails (the access to the metadata)
+	// scaling would void the picture with nans
+	// so it's better to get whatever metadata there is & abort for now
+	if (numtype(zoomFactor) == 2)
+		note $movieName, "fdir="+s_path
+		note $movieName, "fname="+s_filename
+		string fpath = s_path+s_filename
+		note $movieName, "fpath="+fpath
+		note $movieName, ""
+		// generally whatever this is, is quite poor so it can be omitted
+		// note $movieName, metadata
+		abort
+	endif
 	
 	// get deltas to scale 
 	// not the same, but basically from apply header info (in LoadScanImage)
@@ -254,19 +226,15 @@ function pigLoadMovie()
 	// append all info (in case it's needed)
 	note $movieName, metadata
 	
-	// convert to double precision floating point
-	// redimension /d $movieName
-	// make global string for path
-	string platform = IgorInfo(2)
-	if (CmpStr(platform, "Windows") != 0)
-		string/g root:Packages:pig:pigPathToMovie = parseFilePath(5,filePath,"/",0,0)
-	else 
-		string/g root:Packages:pig:pigPathToMovie = parseFilePath(5,filePath,"\\",0,0)
-	endif
-	
 	// split channels (using fxs from LoadScanImage
 	variable nChannels = nChannelsFromHeader($movieName)
+	// in case there's no info in the header (so nChannels = nan)
+	if (numtype(nChannels) == 2)
+		print("\nDidn't find info for nChannels in the metadata: assuming 2 channels\n")
+		nChannels = 2
+	endif
 	splitChannels($movieName,nChannels)
+
 	// move to movie folder
 	variable i
 	string chName, chPath
@@ -323,8 +291,8 @@ function pigSelectPythonScript()
 	else
 		path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
 	endif
-	string/g pigPathToScript = path_to_python_script
-	print "\n\tselected python script at: "+pigPathToScript
+	string/g root:Packages:pig:pigPathToScript = path_to_python_script
+	print "\n\tselected python script at: "+path_to_python_script
 end
 
 
@@ -424,8 +392,23 @@ end
 
 
 // 10
-// get metadata from different kind of files - using python
-// TODO
+// to load python outputs and then remove temporal folders
+function pigLoadAndRemoveTempFolder(string pathToTempFolder)
+	// load
+	LoadFiles(dirpath=pathToTempFolder)
+	print "loaded temporal files at: "+pathToTempFolder
+	// remove
+	string platform = IgorInfo(2)
+	if (CmpStr(platform, "Windows") == 0)
+		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+pathToTempFolder
+	else
+		string cmd
+		sprintf cmd, "do shell script \"rm -rf %s\"", pathToTempFolder
+		executeScriptText/b/z cmd
+		print s_value
+	endif
+	print "removed temporal files from: "+pathToTempFolder
+end
 
 
 // 11
@@ -434,9 +417,9 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	// check platform
 	string platform = IgorInfo(2)
 	
-	// 1. lookup paths
+	// 11.1 lookup paths
 	
-	// 1.1 check whether python interpreter has been defined
+	// 11.1.1 check whether python interpreter has been defined
 	if (paramIsDefault(pathToPython) != 0)
 		// this functions looks up for, or creates a txt file with the path to python
 		// the path inside the txt file is made a global string = pigthonPythonPath
@@ -447,7 +430,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToPython = TrimString(pigPathToPython)
 	endif
 
-	// 1.2 check for path to script	
+	// 11.1.2 check for path to script	
 	svar/z pigPathToScript = root:pigPathToScript
 	// if script in args, make script as preferred
 	if (paramIsDefault(pathToScript) == 0)
@@ -460,9 +443,9 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToScript = pigPathToScript
 	endif
 	
-	// 1.3 check path to movie
+	// 11.1.3 check path to movie
 	svar/z pigPathToMovie = root:pigPathToMovie
-	// same as 1.2
+	// same as 11.1.2
 	if (paramIsDefault(pathToMovie) == 0)
 		string/g pigPathToMovie = pathToMovie
 	// if not, and there is preferred script, used that
@@ -474,7 +457,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 2. print & double check
+	// 11.2. print & double check
 	print "\npig:"
 	// path to interpreter
 	if (numtype(strlen(pathToPython)) == 2)
@@ -499,7 +482,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 
 
-	// 3. run python script from terminal
+	// 11.3. run python script from terminal
 	if (CmpStr(platform, "Windows") == 0)
 		RunPythonScriptOnMovieWindows(pathToPython, pathToScript, pathToMovie)
 	else
@@ -507,7 +490,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 4. load files from python output folder into igor
+	// 11.4. load files from python output folder into igor
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
@@ -519,7 +502,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	print "temporal files at: "+path_to_python_output
 	
 	
-	// 5. remove temporal folders
+	// 11.5. remove temporal folder
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
 	else
@@ -530,7 +513,6 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	print "removed temporal files from: "+path_to_python_output
 end
-
 
 
 

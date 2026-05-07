@@ -13,6 +13,7 @@ Window pigPanel(): Panel_pig
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
+	pigDefinePathToGetMetadata()
 	// main panel
 	// /w=(left, top, right, bottom)
 	NewPanel/w = (666,111,1055,400) as "Pig — KS analysis"
@@ -57,7 +58,7 @@ Window pigPanel(): Panel_pig
 	Button button4,pos={285,115},size={75,20},proc=button4,title="04"
 	Button button4,help={"free button"}
 	Button button4,fColor=(16191,18504,18761)
-	Button button5,pos={30,147},size={100,20},proc=button5,title="05"
+	Button button5,pos={30,147},size={100,20},proc=button5,title="get metadata"
 	Button button5,help={"free button"}
 	Button button5,fColor=(16191,18504,18761)
 	Button button6,pos={145,147},size={100,20},proc=button6,title="06"
@@ -338,6 +339,16 @@ function button5(ba) : ButtonControl
 		case 2: // mouse up
 		
 			// function 05
+			string list=wavelist("*",";","DIMS:3")
+			string name
+			prompt name, "pick movie (in current data folder)", popup,list
+			doprompt "pick movie ", name
+				if(V_flag==1)
+					Abort
+				endif	
+			wave picwave=$name
+			pigGetMetadata(picwave)			
+			// appendMetadata(picwave)
 			
 			break
 		case -1: // control being killed

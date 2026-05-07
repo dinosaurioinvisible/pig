@@ -29,8 +29,8 @@ class KS_pipeline:
         lambda_reg = 0.05,              # regul. strength in ridge regression
         edge_margin = 3,                # could be variable
         # binary options
-        registration = True,
-        bleach_correction = True,
+        deinterleave = True,
+        square = True,
         igor = True,
         mk_plots = False
         ):
@@ -45,6 +45,9 @@ class KS_pipeline:
             self.sigma_fit = sigma_fit
             self.lambda_reg = lambda_reg
             self.edge_margin = edge_margin
+            # binary options
+            self.deinterleave = deinterleave
+            self.square = square
             self.igor = igor
             self.mk_plots = mk_plots
             self.run()
@@ -53,8 +56,10 @@ class KS_pipeline:
         # load & pre-process
         self.load_movie()
         self.register()
-        # self.interpolate()
-        self.interpolate_square()
+        if self.square:
+            self.interpolate_square()
+        else:
+            self.interpolate()
         self.bleach_correction()
         # setup search
         self.define_roi_size()
@@ -89,10 +94,12 @@ class KS_pipeline:
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
-            self.movie = raw_movie[:,0,:,:]
+            if self.deinterleave:
+                self.movie = raw_movie[:,0,:,:]
         else:
             self.get_metadata(x, datatype='ImageDescription')
-            self.movie = raw_movie[0::2]
+            if self.deinterleave:
+                self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
@@ -587,7 +594,11 @@ if __name__ == "__main__":
     percentile = 70
     min_distance = 3
     synapse_size = 2
+    # method for interpolation
+    square = True
+    # outputting for igor loading
     igor = True
+    # plots (not for igor)
     mk_plots = False
     for ei,arg in enumerate(sys.argv):
         if arg.startswith('--fov='):
@@ -600,6 +611,8 @@ if __name__ == "__main__":
             min_distance = float(arg.split('=')[1])
         if arg.startswith('--synapse_size='):
             synapse_size = float(arg.split('=')[1])
+        if arg.startswith('--interpolate'):
+            square = False
         if arg == '--not_igor':
             igor = False
         if arg == '--make_plots':
@@ -610,6 +623,7 @@ if __name__ == "__main__":
         percentile=percentile,
         min_distance=min_distance,
         synapse_size=synapse_size,
+        square=square,
         igor=igor,
         mk_plots=mk_plots,
         )
