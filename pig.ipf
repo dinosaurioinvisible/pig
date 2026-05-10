@@ -7,6 +7,10 @@
 #include "Ch2LineRes"
 #include "LoadScanImage"
 #include "pigGetMetadata"
+// temporal - delete 
+#include "pigFunctions"
+#include "pigPlots"
+
 
 // ~ index
 // 0. brief comment
