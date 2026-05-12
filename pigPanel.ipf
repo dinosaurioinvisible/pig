@@ -39,7 +39,7 @@ Window pigPanel(): Panel_pig
 	SetVariable alpha,limits={0,inf,0},value = root:Packages:pig:alpha
 	// ks: run
 	Button runKS, pos={290,42}, size={70,20}, proc=button_runKS, title="Run KS"
-	Button runKS,fColor=(16191,18504,18761)
+	Button runKS, fColor=(16191,18504,18761)
 	// other functions: main box
 	SetDrawEnv linethick = 0,fillfgc = (10283,48779,31735)
 	DrawRRect 20,105,370,175
@@ -58,12 +58,13 @@ Window pigPanel(): Panel_pig
 	Button button4,pos={285,115},size={75,20},proc=button4,title="04"
 	Button button4,help={"free button"}
 	Button button4,fColor=(16191,18504,18761)
-	Button button5,pos={30,147},size={100,20},proc=button5,title="get metadata"
-	Button button5,help={"free button"}
-	Button button5,fColor=(16191,18504,18761)
-	Button button6,pos={145,147},size={100,20},proc=button6,title="06"
-	Button button6,help={"free button"}
-	Button button6,fColor=(16191,18504,18761)
+	// initially free, but now following suggestions from Jose, Marios and Jonny
+	Button getMetadata,pos={30,147},size={100,20},proc=button_getMetadata,title="get metadata"
+	Button getMetadata,help={"retrieves metadata using PIG"}
+	Button getMetadata,fColor=(16191,18504,18761)
+	Button ROIbuddy,pos={145,147},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
+	Button ROIbuddy,help={"ROI buddy, from ART"}
+	Button ROIbuddy,fColor=(16191,18504,18761)
 	Button button7,pos={260,147},size={100,20},proc=button7,title="07"
 	Button button7,help={"free button"}
 	Button button7,fColor=(16191,18504,18761)	
@@ -332,13 +333,21 @@ function button4(ba) : ButtonControl
 	return 0
 end
 
+
+/////////////////////////////
+//									//
+//	  some more functions		//
+//									//
+/////////////////////////////
+
+
 // button 05
-function button5(ba) : ButtonControl
+function button_GetMetadata(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
-		
-			// function 05
+
+			// function 05: get metadata
 			string list=wavelist("*",";","DIMS:3")
 			string name
 			prompt name, "pick movie (in current data folder)", popup,list
@@ -358,12 +367,21 @@ function button5(ba) : ButtonControl
 end
 
 // button 06
-function button6(ba) : ButtonControl
+function button_ROIbuddy(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
-		
-			// function 06
+			
+			// function 06: ROI buddy
+			string list=wavelist("*",";","DIMS:2")
+			string name
+			prompt name, "Data wave", popup,list
+			doprompt "Pick data to examine ", name
+				if(V_flag==1)
+					Abort
+				endif	
+			wave w=$name
+			pigROIbuddy(w)
 			
 			break
 		case -1: // control being killed

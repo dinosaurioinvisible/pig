@@ -3,13 +3,14 @@
 
 #include <ProcedureBrowser>
 #include "pigPanel"
-#include "pigLoadMultipleFiles"
-#include "Ch2LineRes"
-#include "LoadScanImage"
 #include "pigGetMetadata"
-// temporal - delete 
-#include "pigFunctions"
-#include "pigPlots"
+// these have been previously developed in the lab
+// i have modified them (more or less) & added them to the PIG folder
+// for stand-alone use, and to avoid confusion from diff versions
+#include "Ch2LineRes"
+#include "pigLoadMultipleFiles"
+#include "pigHelperFunctions"
+#include "pigROIbuddy"
 
 
 // ~ index
@@ -165,6 +166,8 @@ function pigLoadMovie()
 	endif
 	// remove extension from name 
 	string fname = s_filename[0,strsearch(s_filename,".tif",0)-1]
+	// replace spaces with underscores (to avoid failure at loading)
+	fname = ReplaceString(" ", fname, "_")
 	// create folder for movie and move loaded movie there
 	NewDataFolder/O root:$fname
 	string movieName = "root:" +fname+ ":" +fname
@@ -243,13 +246,13 @@ function pigLoadMovie()
 	note $movieName, metadata
 	
 	// split channels (using fxs from LoadScanImage
-	variable nChannels = nChannelsFromHeader($movieName)
+	variable nChannels = nChannelsFromHeaderx($movieName)
 	// in case there's no info in the header (so nChannels = nan)
 	if (numtype(nChannels) == 2)
 		print("\nDidn't find info for nChannels in the metadata: assuming 2 channels\n")
 		nChannels = 2
 	endif
-	splitChannels($movieName,nChannels)
+	splitChannelsx($movieName,nChannels)
 
 	// move to movie folder
 	variable i
@@ -351,9 +354,9 @@ function pigRunKS(wave movie)
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
 	else
-		string cmd
-		sprintf cmd, "do shell script \"rm -rf %s\"", path_to_python_output
-		executeScriptText/b/z cmd
+		string igorcmd = "do shell script \"rm -rf \'" + path_to_python_output + "\'\""
+		print igorcmd
+   	executeScriptText/z igorcmd
 		print s_value
 	endif
 	print "removed temporal files from: "+path_to_python_output
@@ -373,7 +376,7 @@ function pigRunKS(wave movie)
 	// _isq is for pixel squaring
 	string wx_isq = wx + "_isq"
 	if (WaveExists($wx_int))
-   	CopyScales $movieWave, $wx_int
+   	copyScales $movieWave, $wx_int
    	setscale/p z, 0,  dt, "s", $wx_int
    	wx = wx + "_int"
 	elseif (WaveExists($wx_isq))
@@ -387,6 +390,10 @@ function pigRunKS(wave movie)
 	wx = wx + "_bc"
 	copyscales $movieWave, $wx
 	setscale/p z, 0,  dt, "s", $wx
+	// movie with overlayed synapses
+	string wx_overlay = wx + "_overlay"
+	copyscales $movieWave, $wx_overlay
+	setscale/p z, 0,  dt, "s", $wx_overlay
 	// same base name, different terminations
 	string wx_df = wx + "_deltaf"
 	copyscales $movieWave, $wx_df
@@ -416,6 +423,9 @@ function pigRunKS(wave movie)
 	sti = stiKS[p][1]
 	setScale/p x 0, dt, "s", sti
 	killwaves stiKS
+	
+	// make a standar deviation image from processed movie
+	stdev($(nameOfWave($wx)), (nameOfWave($wx)+"_std"))
 end
 
 

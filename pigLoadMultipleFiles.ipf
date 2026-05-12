@@ -2,11 +2,12 @@
 #pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
+// Modified version for PIG
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Input is any kind of file from a given folder
 // Output is the conversion of files into IGOR 2D wave(s)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
- 
 
 
 Function/S LoadFiles([string dirpath])
@@ -72,7 +73,9 @@ Function/S LoadFiles([string dirpath])
 			else
 				fname = ParseFilePath(3, path, ":", 0, 0)
 			endif
-			
+			// replace spaces with underscores (to avoid issues at loading/processing)
+			fname = ReplaceString(" ", fname, "_")
+			// load
 			if (cmpStr(path[strlen(path)-4,strlen(path)-1], ".tif")  == 0)
 				ImageLoad/Q/T=TIFF/N=$fname/S=0/C=-1/LR3D path
 				// to remove extra layer (3d dim) from 2d arrays

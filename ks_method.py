@@ -10,6 +10,7 @@ from scipy.ndimage import shift, gaussian_filter
 from scipy.stats import ks_2samp
 from skimage.registration import phase_cross_correlation
 from skimage.feature import peak_local_max
+from skimage.draw import circle_perimeter
 
 from scipy.ndimage import zoom
 import pandas as pd
@@ -74,6 +75,7 @@ class KS_pipeline:
             # extract traces
             self.ridge_demixing()
             self.compute_dff_traces()
+            self.overlay_synapses()
             if self.mk_plots:
                 self.plot_synapses()
                 self.plot_traces()
@@ -288,7 +290,7 @@ class KS_pipeline:
     def define_roi_size(self):
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
-        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
+        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)/2
         # if roi radius < min distance between peaks
         # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
@@ -370,7 +372,7 @@ class KS_pipeline:
         # check
         if not np.any(significant):
             # raise Exception ('\nNo significative peaks found\n')
-            print('\nNo significative peaks found\n')
+            print('\nNo significant peaks found\n')
             self.synapses = []
             return
 
@@ -381,13 +383,16 @@ class KS_pipeline:
         self.ks_peaks = self.ks_peaks[pvals <= p_cutoff]
         # sort by ΔF/F and keep coords only
         self.synapses = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=True))[:,:2].astype(int)
-        # masked 2d arrays for synapses
-        self.synapses_mask_pixels = np.ones((self.movie.shape[1:])) * -1
-        self.synapses_mask_rois = np.full(self.movie.shape[1:], -1, dtype=int)
-        for ei,(row,col) in enumerate(self.synapses,1):
-            self.synapses_mask_pixels[row,col] = ei
+        # masked 2d arrays for synapses        
+        self.synapses_mask_pixels = np.full(self.movie.shape[1:], 1, dtype=np.int16)
+        self.synapses_mask_rois = np.full(self.movie.shape[1:], 1, dtype=np.int16)
+        for ei, (row, col) in enumerate(self.synapses):
+            val = -(ei + 1)
+            self.synapses_mask_pixels[row,col] = val
             disk = ((yy-row)**2 + (xx-col)**2) <= self.roi_radius**2
-            self.synapses_mask_rois[disk] = np.where(self.synapses_mask_rois[disk] == -1, ei, self.synapses_mask_rois[disk])
+            free = disk & (self.synapses_mask_rois == 1)
+            self.synapses_mask_rois[free] = val
+            
 
         # export data
         if self.igor:
@@ -516,6 +521,38 @@ class KS_pipeline:
             plt.savefig(f'{self.savepath}_synapses.png')
         else:
             plt.show()
+
+
+    # function to overlay circles in the movie
+    def overlay_synapses(self,
+                         color=(255,0,0),
+                         thickness=1, 
+                         percentile_clip=(1,99),
+                         labels=False):
+        # make movie gray
+        lo, hi = np.percentile(self.movie, percentile_clip)
+        gray = np.clip((self.movie - lo) / max(hi - lo, 1e-12), 0, 1)
+        gray8 = (gray * 255).astype(np.uint8)
+        # broadcast to RGB: (nframes, rows, cols, 3)
+        # np.broadcast_to is cheap (no copy) but tif writer needs contiguous data,
+        # so we materialize with repeat
+        overlay = np.repeat(gray8[..., None], 3, axis=-1)        
+        # calculate circles from coordinates
+        # H, W = self.nrows, self.ncols
+        rows, cols = [], []
+        for r in range(int(self.roi_radius), int(self.roi_radius) + int(thickness)):
+            for (y0, x0) in self.synapses:
+                rr, cc = circle_perimeter(int(y0), int(x0), r, shape=(self.nrows, self.ncols))
+                rows.append(rr)
+                cols.append(cc)
+        rr = np.concatenate(rows)
+        cc = np.concatenate(cols)
+        # mk circles
+        for ch, val in enumerate(color):
+            overlay[:, rr, cc, ch] = val
+        # save
+        if self.igor:
+            tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
 
 
     # plot best traces
