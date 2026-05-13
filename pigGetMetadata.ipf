@@ -51,6 +51,7 @@ function pigGetMetadata(wave movie)
 	endif
 	// load and remove temp 
 	pigLoadAndRemoveTempFolder(dirPath)
+	
 end
 
 
@@ -58,9 +59,8 @@ end
 function appendMetadata(wave movie)
 	// get name of metadata file
 	string info = note(movie)
-	string fileName = stringByKey("fname",info,"=","\r")
-	string movieName = fileName[0, strsearch(fileName, ".tif", 0)-1]
-	string metadata = "root:" + movieName + ":" + movieName + "_metadata"
+	string baseName = stringByKey("basename",info,"=","\r")
+	string metadata = "root:" + baseName + ":" + baseName + "_metadata"
 	// merge metadata
 	wave/t metadataWave = $metadata
 	string allMetadata = ""
@@ -68,40 +68,49 @@ function appendMetadata(wave movie)
 	for (i = 0; i < numpnts(metadataWave); i += 1)
    	allMetadata += metadataWave[i] + "\r"
 	endfor
-	// look for necessary data
+	// look for necessary data (notes (so ImageDescription), software data, artist)
 	// zoom
-	variable zoomFactor = numberByKey("Software.SI.hRoiManager.scanZoomFactor", allMetadata, "=", "\r")
-	if (numtype(zoomFactor)==2)
-		zoomFactor = numberByKey("Artist.RoiGroups.imagingRoiGroup.rois.UserData.scanZoomFactor", allMetadata, "=", "\r")
-	endif
-	// note movie, "zoomFactor="+num2str(zoomFactor)
-	if (strlen(StringByKey("zoomFactor", info, "=", "\r")) == 0)
-   	Note movie, "zoomFactor=" + num2str(zoomFactor) + "\r"
-	endif
+	variable zoomFactor = numberByKey("zoomFactor", info, "=", "\r")
+	// =2 means NaN or empty
+	if (numtype(zoomFactor) == 2)
+   	zoomFactor = numberByKey("Software.SI.hRoiManager.scanZoomFactor", allMetadata, "=", "\r")
+   endif
+   if (numtype(zoomFactor)==2)
+   	zoomFactor = numberByKey("Artist.RoiGroups.imagingRoiGroup.rois.UserData.scanZoomFactor", allMetadata, "=", "\r")
+   endif
+   note movie, "zoomFactor=" + num2str(zoomFactor)
 	// scanAngleMultiplierFast
-	variable angleFast = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierFast", allMetadata, "=", "\r")
-	if (numtype(angleFast)==2)
+	variable angleFast = numberByKey("scanAngleMultiplierFast", info, "=", "\r")
+	if (numtype(angleFast) == 2) 
+   	angleFast = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierFast", allMetadata, "=", "\r")
+   endif
+   if (numtype(angleFast)==2)
 		angleFast = 1
 	endif
-	// note movie, "scanAngleMultiplierFast="+num2str(angleFast)
-	if (strlen(StringByKey("scanAngleMultiplierFast", info, "=", "\r")) == 0)
-   	Note movie, "scanAngleMultiplierFast=" + num2str(angleFast) + "\r"
-	endif
+ 	note movie, "scanAngleMultiplierFast=" + num2str(angleFast)
 	// scanAngleMultiplierSlow
-	variable angleSlow = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierSlow", allMetadata, "=", "\r")
-	if (numtype(angleSlow)==2)
+	variable angleslow = numberByKey("scanAngleMultiplierSlow", info, "=", "\r")
+	if (numtype(angleslow) == 2) 
+   	angleFast = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierSlow", allMetadata, "=", "\r")
+   endif
+   if (numtype(angleSlow)==2)
 		angleSlow = numberByKey("Artist.RoiGroups.imagingRoiGroup.rois.UserData.scanAngleMultiplierSlow", allMetadata, "=", "\r")
 	endif
-	// note movie, "scanAngleMultiplierSlow="+num2str(angleSlow)
-	if (strlen(StringByKey("scanAngleMultiplierSlow", info, "=", "\r")) == 0)
-   	Note movie, "scanAngleMultiplierSlow=" + num2str(angleSlow) + "\r"
+   if (numtype(angleSlow)==2)
+   	print("Couldnt find info for scanAngleMultiplierSlow, set to 1")
+		angleSlow = 1
 	endif
+ 	note movie, "scanAngleMultiplierSlow=" + num2str(angleSlow)
+ 	// msPerLine
+ 	variable linePeriod = numberByKey("Software.SI.hRoiManager.linePeriod", allMetadata, "=", "\r")
+	variable msPerLine = linePeriod * 1000
+	note movie, "msPerLine=" + num2str(msPerLine)
 	// frameRate
-	variable frameRate = round(NumberByKey("Software.SI.hRoiManager.scanFrameRate", allMetadata, "=", "\r"))
-	//note movie, "frameRate="+num2str(frameRate)
-	if (strlen(stringByKey("frameRate", info, "=", "\r")) == 0)
-   	Note movie, "frameRate=" + num2str(frameRate) + "\r"
-	endif
+	variable frameRate = numberByKey("frameRate", info, "=", "\r")
+	if (numtype(frameRate) == 2)
+   	frameRate = numberByKey("Software.SI.hRoiManager.scanFrameRate", allMetadata, "=", "\r")
+   endif
+	note movie, "frameRate="+num2str(frameRate)
 	// dt
 	variable dt = 1/frameRate
 	// note movie, "dt="+num2str(dt)

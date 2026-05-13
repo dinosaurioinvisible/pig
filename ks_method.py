@@ -97,22 +97,20 @@ class KS_pipeline:
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
-            if self.deinterleave:
-                self.movie = raw_movie[:,0,:,:]
+            self.movie = raw_movie[:,0,:,:]
         else:
             self.get_metadata(x, datatype='ImageDescription')
-            if self.deinterleave:
-                self.movie = raw_movie[0::2]
+            self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
 
 
     def mk_names(self):
-        fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
-        fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
-        savedir = os.path.join(fdir,'python_output')
-        self.savepath = os.path.join(savedir,fname)
+        self.fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
+        self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
+        savedir = os.path.join(self.fdir,'python_output')
+        self.savepath = os.path.join(savedir,self.fname)
         if not os.path.isdir(savedir):
             os.mkdir(savedir)
 
@@ -138,6 +136,8 @@ class KS_pipeline:
             # Software metadata is more accurate, so no exactly 20hz, for example
             self.frameRate = round(float(self.metadata['SI.hRoiManager.scanFrameRate']))
             self.zoomFactor = float(self.metadata['SI.hRoiManager.scanZoomFactor'])
+            self.scanAngleMultFast = float(self.metadata["SI.hRoiManager.scanAngleMultiplierFast"])
+            self.scanAngleMultSlow = float(self.metadata["SI.hRoiManager.scanAngleMultiplierSlow"])
         self.dt = 1/self.frameRate
 
 
@@ -148,6 +148,11 @@ class KS_pipeline:
             self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
         else:
             self.stimulus = raw_movie[1::2].mean(axis=(1,2))
+        stimulus_txt = os.path.join(self.fdir,"stim_frames.txt")
+        if os.path.isfile(stimulus_txt):
+            with open(stimulus_txt, "r") as f:
+                stim_txt = f.read()
+            self.stimulus = np.array(stim_txt.split('\n')[1:-1], dtype=int)
         # normalize
         if self.stimulus.max() > 1:
             self.stimulus = self.stimulus/self.stimulus.max()
@@ -249,6 +254,9 @@ class KS_pipeline:
             rowZoom = self.nrows_sq / self.or_nrows
             self.movie = zoom(self.movie, zoom=(1, rowZoom, 1), order=1)
             self.px_sq = self.px
+        # just for metadata
+        else:
+            self.px_sq, self.py_sq = self.px, self.py
         # else they're already squared
         # new sizes and shapes
         self.nrows, self.ncols = self.movie.shape[1:]
@@ -290,7 +298,7 @@ class KS_pipeline:
     def define_roi_size(self):
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
-        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)/2
+        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
         # if roi radius < min distance between peaks
         # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
@@ -553,7 +561,11 @@ class KS_pipeline:
         # save
         if self.igor:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
-
+            # save a copy in same folder
+            fcopy = os.path.join(self.fdir,self.fname)
+            fcopy_path = f'{fcopy}_overlay.tif'
+            tf.imwrite(fcopy_path, overlay)
+            
 
     # plot best traces
     # TODO: why re-sorting using ΔF/F?

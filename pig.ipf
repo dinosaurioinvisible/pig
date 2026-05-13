@@ -182,34 +182,50 @@ function pigLoadMovie()
 	// this works with the older version of scan image only
 	print s_info
 	string metadata = s_info
+	// this is to check access to metadata
 	// get info - to access note info: print note($"movieName")
+	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
 	string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
 	variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
 	variable frameRate = numberByKey("state.acq.frameRate",s_info,"=","\r")
-	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
 	variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
 	variable angleSlow = numberByKey("state.acq.scanAngleMultiplierSlow",s_info,"=","\r")
 	
 	// if this fails (the access to the metadata)
 	// scaling would void the picture with nans
-	// so it's better to get whatever metadata there is & abort for now
+	// safest option is to retrieve whatever info available and abort
+	// here I try to get the info using the getMetadata() function first
 	if (numtype(zoomFactor) == 2)
-		note $movieName, "expDate="
-		note $movieName, "msPerLine="
-		note $movieName, "frameRate="
-		note $movieName, "dt="
-		note $movieName, "zoomFactor="
-		note $movieName, "scanAngleMultiplierFast="
-		note $movieName, "scanAngleMultiplierSlow="
+		// i'm defining this here anyway, for getMetadata()
 		note $movieName, "fdir="+s_path
 		note $movieName, "fname="+s_filename
 		note $movieName, "basename="+fname
 		string fpath = s_path+s_filename
 		note $movieName, "fpath="+fpath
 		note $movieName, ""
-		// generally whatever this is, is quite poor so it can be omitted
-		// note $movieName, metadata
-		abort
+		// try to get metadata
+		pigGetMetadata($movieName)
+		// move metadata from root: to movie folder
+		string cwdx = getDataFolder(1)
+		string metadataWaveDefault = cwdx + fname + "_metadata"
+		string metadataWave = movieName+"_metadata"
+		// if it exists, erase (otherwise yields error)
+		if (waveExists($metadataWave))
+			killwaves/z $metadataWave
+		endif
+		moveWave $metadataWaveDefault, $metadataWave
+		// try to extract info from it & append it to the notes
+		appendMetadata($movieName)
+		// generally whatever the info available is, is not so relevant
+		// but probabbly is better than nothing anyway
+		note $movieName, metadata
+		// now we need the values for scaling
+		string info = note($movieName)
+		zoomFactor = NumberByKey("zoomFactor", info, "=", "\r")
+		angleFast = NumberByKey("scanAngleMultiplierFast", info, "=", "\r")
+		angleSlow = NumberByKey("scanAngleMultiplierSlow", info, "=", "\r")
+		frameRate = NumberByKey("frameRate", info, "=", "\r")
+		msPerLine = NumberByKey("msPerLine", info, "=", "\r")
 	endif
 	
 	// get deltas to scale 
@@ -249,10 +265,10 @@ function pigLoadMovie()
 	variable nChannels = nChannelsFromHeaderx($movieName)
 	// in case there's no info in the header (so nChannels = nan)
 	if (numtype(nChannels) == 2)
-		print("\nDidn't find info for nChannels in the metadata: assuming 2 channels\n")
+		print("\nDidn't find info for nChannels in the metadata: assuming 2 channels")
 		nChannels = 2
 	endif
-	splitChannelsx($movieName,nChannels)
+	splitChannelsx($movieName, nChannels=nChannels)
 
 	// move to movie folder
 	variable i

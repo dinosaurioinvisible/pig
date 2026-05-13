@@ -44,6 +44,17 @@ def get_scanImage_metadata(path_to_movie,igor=False):
                     metadata[f'{tag.name}.{k.strip()}'] = v.strip()
                 except:
                     metadata[f'{tag.name}.{k.strip()}'] = i
+            # Software information changes at page=1, so:
+            tag_data1 = x.pages[1].tags[tag.name].value
+            paired_data1 = tag_data1.split('\n')
+            if len(paired_data1) == 1:
+                paired_data1 = tag_data1.split('\r')
+            for i in paired_data1:
+                try:
+                    k,v = i.split('=')
+                    metadata[f'{tag.name}.{k.strip()}'] = v.strip()
+                except:
+                    metadata[f'{tag.name}.{k.strip()}'] = i
         # artist also has a lot of data, in json format
         elif tag.name == 'Artist':
             import json

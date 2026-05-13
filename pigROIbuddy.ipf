@@ -9,6 +9,10 @@ Function pigROIbuddy(w)
 	string basename = nameOfWave(w)[0,strSearch(nameOfWave(w),"_reg_",0)-1]
 	string/g root:packages:pig:ROIbuddy_basename = basename
 	
+	// took this idea from Marios' ROIbuddy
+	string stimulus = "root:" + basename + ":" + basename + "_sti"
+	wave ws = $stimulus
+	
 	// these files are different for KS
 	// look for the STD and ROImask files for background
 	// this assumes the processing made by the KS algorithm: 
@@ -46,8 +50,10 @@ Function pigROIbuddy(w)
 	Label df "ÆF/F"
 	ModifyGraph lblPos(DF)=65
 	ControlBar 30
-	SetVariable ShowROI,pos={460,3},size={130,23},proc=pigShowROI,title="ShowROI"
+	// from Marios
+	AppendToGraph/L=DF/C=(0,0,0) ws[][0]
 	
+	SetVariable ShowROI,pos={460,3},size={130,23},proc=pigShowROI,title="ShowROI"
 	SetVariable ShowROI limits={0,dimsize(w,1)-1,1}
 	SetVariable ShowROI,fSize=15,value=ROI2display
 	

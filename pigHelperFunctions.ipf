@@ -26,9 +26,16 @@ function nChannelsFromHeaderx(PicWave)
 end
 
 // (also from LoadScanImage)
-function SplitChannelsx(PicWave,nChannels)
+// mostly the same, but makes the nChannels argument optional
+// if not defined, it makes nchannels = 2
+function SplitChannelsx(PicWave, [nChannels])
 	wave PicWave
 	variable nChannels	
+	// assume 2 channels if not found/provided
+   if (ParamIsDefault(nChannels))
+   	print("\nDidn't find info for nChannels in the metadata: assuming 2 channels\n")
+   	nChannels = 2
+   endif
 	variable nFrames = DimSize(PicWave,2), FramesPerChannel, Rest, ii
 	string wvName
 	FramesPerChannel=nFrames/nChannels
@@ -70,5 +77,7 @@ function CopyScalingx(source, destination)
 		setscale /P t, DimOffset(source, 3),  DimDelta(source, 3),WaveUnits(source, 3), destination
 	endif
 end
+
+// to load/replace ch2 
 
 
