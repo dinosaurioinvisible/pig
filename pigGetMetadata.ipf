@@ -115,8 +115,14 @@ function appendMetadata(wave movie)
 	variable dt = 1/frameRate
 	// note movie, "dt="+num2str(dt)
 	if (strlen(StringByKey("dt", info, "=", "\r")) == 0)
-   	note movie, "dt=" + num2str(dt) + "\r"
+   	note movie, "dt=" + num2str(dt)
 	endif
-	// variable msPerLine? - couldn'r find this in the metadata
-	// note $movieName, "msPerLine="+num2str(msPerLine)
+	// calculate fovx and fovy (zoomed)
+	nvar fov = root:Packages:pig:FOV
+	variable fovx = fov * angleFast / zoomFactor
+	variable fovy = fov * angleSlow / zoomFactor
+	note movie, "fovZoom_x=" + num2str(fovx) 
+	note movie, "fovZoom_y=" + num2str(fovy)	
+	note movie, ""
+
 end

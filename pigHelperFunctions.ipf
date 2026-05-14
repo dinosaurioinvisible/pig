@@ -78,6 +78,57 @@ function CopyScalingx(source, destination)
 	endif
 end
 
-// to load/replace ch2 
+// to make a background image with ROIs on top
+function overlay_circles(wave image, wave synapses_data, [variable r])
+	// radius in pixels
+	if (ParamIsDefault(r))
+        r = 3
+   endif
+   // copy image
+   string im = nameOfWave(image) + "_rois"
+   duplicate/o image, $im
+   wave newImage = $im
+	// coords
+	variable nROIs = DimSize(synapses_data, 0)
+   variable maxVal = WaveMax(image)
+   variable i, angle
+   variable nAngles = 360
+   
+   for (i = 0; i < nROIs; i += 1)
+   	// x = cols, y = rows, i = synapse
+   	variable x0 = round(synapses_data[i][2])
+   	variable y0 = round(synapses_data[i][1])
+   	// draw circle outline only
+      for (angle = 0; angle < nAngles; angle += 1)
+			variable px = round(x0 + r * cos(2 * pi * angle / nAngles))
+			variable py = round(y0 + r * sin(2 * pi * angle / nAngles))
+         if (px >= 0 && px < DimSize(newImage, 0) && py >= 0 && py < DimSize(newImage, 1))
+				newImage[px][py] = maxVal
+			endif
+		endfor
+	endfor
 
+   // display image
+   string windowName = im + "_win"
+   Display/N=$windowName
+   AppendImage/W=$windowName newImage
+   ModifyImage/W=$windowName $(im) ctab={*,*, Grays, 0}
+    
+   // add numbers at each coordinate
+   variable xDim = DimSize(newImage, 0)
+   variable yDim = DimSize(newImage, 1)
+    
+   for (i = 0; i < nROIs; i += 1)
+		x0 = round(synapses_data[i][2])
+      y0 = round(synapses_data[i][1])
+        
+        // normalize to 0-1 for DrawText
+        variable xpos = x0 / xDim
+        variable ypos = 1 - y0 / yDim
+        
+        SetDrawLayer/W=$windowName UserFront
+        SetDrawEnv/W=$windowName xcoord=prel, ycoord=prel, textrgb=(65535, 0, 0), fsize=10
+        DrawText/W=$windowName xpos, ypos, num2str(i)
+   endfor	
+end
 

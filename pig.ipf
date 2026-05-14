@@ -185,7 +185,7 @@ function pigLoadMovie()
 	// this is to check access to metadata
 	// get info - to access note info: print note($"movieName")
 	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
-	string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
+	// string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
 	variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
 	variable frameRate = numberByKey("state.acq.frameRate",s_info,"=","\r")
 	variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
@@ -195,7 +195,10 @@ function pigLoadMovie()
 	// scaling would void the picture with nans
 	// safest option is to retrieve whatever info available and abort
 	// here I try to get the info using the getMetadata() function first
+	variable meta = 0
 	if (numtype(zoomFactor) == 2)
+		// for later check
+		meta = 1
 		// i'm defining this here anyway, for getMetadata()
 		note $movieName, "fdir="+s_path
 		note $movieName, "fname="+s_filename
@@ -203,6 +206,8 @@ function pigLoadMovie()
 		string fpath = s_path+s_filename
 		note $movieName, "fpath="+fpath
 		note $movieName, ""
+		nvar fov = root:Packages:pig:FOV
+		note $movieName, "fov=" + num2str(fov)
 		// try to get metadata
 		pigGetMetadata($movieName)
 		// move metadata from root: to movie folder
@@ -216,16 +221,19 @@ function pigLoadMovie()
 		moveWave $metadataWaveDefault, $metadataWave
 		// try to extract info from it & append it to the notes
 		appendMetadata($movieName)
-		// generally whatever the info available is, is not so relevant
-		// but probabbly is better than nothing anyway
-		note $movieName, metadata
 		// now we need the values for scaling
 		string info = note($movieName)
+		// append to notes
 		zoomFactor = NumberByKey("zoomFactor", info, "=", "\r")
 		angleFast = NumberByKey("scanAngleMultiplierFast", info, "=", "\r")
 		angleSlow = NumberByKey("scanAngleMultiplierSlow", info, "=", "\r")
-		frameRate = NumberByKey("frameRate", info, "=", "\r")
 		msPerLine = NumberByKey("msPerLine", info, "=", "\r")
+		frameRate = NumberByKey("frameRate", info, "=", "\r")
+		variable dt = 1/frameRate
+		note $movieName, ""
+		// generally whatever the info available is, is not so relevant
+		// but i'm appending it anyway
+		note $movieName, metadata
 	endif
 	
 	// get deltas to scale 
@@ -244,22 +252,35 @@ function pigLoadMovie()
 	setscale /P z, 0, z_res,"s",$movieName
 	
 	// append info to notes
-	note $movieName, "expDate="+expDate
-	note $movieName, "msPerLine="+num2str(msPerLine)
-	note $movieName, "frameRate="+num2str(frameRate)
-	variable dt = 1/frameRate
-	note $movieName, "dt="+num2str(dt)
-	note $movieName, "zoomFactor="+num2str(zoomFactor)
-	note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
-	note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
-	note $movieName, "fdir="+s_path
-	note $movieName, "fname="+s_filename
-	note $movieName, "basename="+fname
 	string filePath = s_path+s_filename
-	note $movieName, "fpath="+filePath
-	note $movieName, ""
-	// append all info (in case it's needed)
-	note $movieName, metadata
+	dt = 1/frameRate
+	// check if not already appended
+	// so metadata was taken using pig
+	if (meta == 0)
+		// note $movieName, "expDate="+expDate
+		nvar fov = root:Packages:pig:FOV
+		note $movieName, "fdir="+s_path
+		note $movieName, "fname="+s_filename
+		note $movieName, "basename="+fname
+		note $movieName, "fpath="+filePath
+		note $movieName, ""
+		note $movieName, "fov=" + num2str(fov)
+		note $movieName, "zoomFactor="+num2str(zoomFactor)
+		note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
+		note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
+		variable fovx = fov * angleFast / zoomFactor
+		variable fovy = fov * angleSlow / zoomFactor
+		fovx = fov * angleFast / zoomFactor
+		fovy = fov * angleSlow / zoomFactor
+		note $movieName, "fovZoom_x=" + num2str(fovx) 
+		note $movieName, "fovZoom_y=" + num2str(fovy)
+		note $movieName, "msPerLine="+num2str(msPerLine)
+		note $movieName, "frameRate="+num2str(frameRate)
+		note $movieName, "dt="+num2str(dt)
+		note $movieName, ""
+		// append all info (in case it's needed)
+		note $movieName, metadata
+	endif
 	
 	// split channels (using fxs from LoadScanImage
 	variable nChannels = nChannelsFromHeaderx($movieName)
@@ -293,8 +314,8 @@ function pigLoadMovie()
 			killwaves/z $stimulusWaveCh2res
 		endif
 	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
-		
 	print "\nloaded movie from: "+filePath
+	
 end
 
 
@@ -442,6 +463,8 @@ function pigRunKS(wave movie)
 	
 	// make a standar deviation image from processed movie
 	stdev($(nameOfWave($wx)), (nameOfWave($wx)+"_std"))
+	// make std image with ROIs on top
+	overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
 end
 
 

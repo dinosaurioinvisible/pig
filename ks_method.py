@@ -298,7 +298,7 @@ class KS_pipeline:
     def define_roi_size(self):
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
-        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)
+        self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)/2
         # if roi radius < min distance between peaks
         # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
@@ -368,7 +368,6 @@ class KS_pipeline:
             # ks
             dist,pval = ks_2samp(baseline_vals, activity_vals)
             self.ks_peaks.append([y0,x0,dff,dist,pval])
-
         # ks peaks = [y0, x0, dff, ks dist, ks pval]
         # sort by p-vals
         self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[-1]))
@@ -400,7 +399,6 @@ class KS_pipeline:
             disk = ((yy-row)**2 + (xx-col)**2) <= self.roi_radius**2
             free = disk & (self.synapses_mask_rois == 1)
             self.synapses_mask_rois[free] = val
-            
 
         # export data
         if self.igor:
