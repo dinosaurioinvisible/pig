@@ -371,6 +371,7 @@ function pigRunKS(wave movie)
 	// optional parameters
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
+	nvar ROIsize = root:Packages:pig:ROIsize
 	// run KS
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
@@ -378,7 +379,7 @@ function pigRunKS(wave movie)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
    	string ks_args
-		sprintf ks_args, "--fov=%s\' \'--alpha=%s", num2str(fov), num2str(alpha)
+		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s", num2str(fov), num2str(alpha), num2str(ROIsize)
    	
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
@@ -438,13 +439,14 @@ function pigRunKS(wave movie)
 	copyscales $movieWave, $wx_pm
 	string wx_rm = wx + "_roimask"
 	copyscales $movieWave, $wx_rm
+	string wx_sm = wx + "_synapses_map"
+	copyscales $movieWave, $wx_sm
 	// for these, time goes in the x axis
 	string wx_dff = wx + "_dff_traces"
 	string wx_gas = wx + "_gs_amps"
 	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
 	setscale/p x, 0,  dt, "s", $wx_dff
 	setscale/p x, 0,  dt, "s", $wx_gas
-	
 	// redimension stimulus wave from python
 	string stimulusWaveKS = movieWave+"_stimulus"
 	string stimulusWave = movieWave+"_sti"
@@ -464,7 +466,7 @@ function pigRunKS(wave movie)
 	// make a standar deviation image from processed movie
 	stdev($(nameOfWave($wx)), (nameOfWave($wx)+"_std"))
 	// make std image with ROIs on top
-	overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
+	// overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
 end
 
 

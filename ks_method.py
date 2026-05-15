@@ -76,8 +76,8 @@ class KS_pipeline:
             self.ridge_demixing()
             self.compute_dff_traces()
             self.overlay_synapses()
+            self.plot_synapses()
             if self.mk_plots:
-                self.plot_synapses()
                 self.plot_traces()
                 self.plot_raster()
 
@@ -388,9 +388,10 @@ class KS_pipeline:
         p_cutoff = pvals[max_i]
         # keep rows whose p-value is under BH cutoff
         self.ks_peaks = self.ks_peaks[pvals <= p_cutoff]
-        # sort by ΔF/F and keep coords only
-        self.synapses = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=True))[:,:2].astype(int)
-        # masked 2d arrays for synapses        
+        # sort by ΔF/F and keep coords only (row, col, df/f, ks-d, ks-p)
+        self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=True))
+        self.synapses = self.ks_peaks[:,:2].astype(int)
+        # masked 2d arrays for synapses
         self.synapses_mask_pixels = np.full(self.movie.shape[1:], 1, dtype=np.int16)
         self.synapses_mask_rois = np.full(self.movie.shape[1:], 1, dtype=np.int16)
         for ei, (row, col) in enumerate(self.synapses):
@@ -403,7 +404,7 @@ class KS_pipeline:
         # export data
         if self.igor:
             dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
-            dfx.to_csv(f'{self.savepath}_synapses.csv')
+            dfx.to_csv(f'{self.savepath}_synapses_data.csv')
             tf.imwrite(f'{self.savepath}_pixelmask.tif', self.synapses_mask_pixels)
             tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask_rois)
         # txt info
@@ -513,18 +514,21 @@ class KS_pipeline:
         vmin = np.percentile(self.deltaf_map, th_vmin)
         vmax = np.percentile(self.deltaf_map, th_vmax)
         plt.imshow(self.deltaf_map, cmap='gray', vmin=vmin, vmax=vmax)
-        plt.title(f"Detected Synapses (n={len(self.synapses)})")
+        # plt.title(f"Detected Synapses (n={len(self.synapses)})")
         plt.axis('off')
         # plot synapses
         for ei,(sy,sx) in enumerate(self.synapses,1):
-            plt.scatter(sx,sy,s=70,facecolors='none',edgecolor='red',linewidths=1.2)
+            # s: typographic points ** 2 & typographic points = 1/72 inches.
+            # tp = 1*2.54/72 = 0.35277 
+            plt.scatter(sx,sy,s=self.roi_radius*1000,facecolors='none',edgecolor='orange',linewidths=1.2)
             # write n in list
             plt.text(sx,sy,str(ei),
-                color='yellow',fontsize=8,
+                color='red',fontsize=9,
                 ha='center',va='center',fontweight='bold')
         plt.tight_layout()
         if self.igor:
-            plt.savefig(f'{self.savepath}_synapses.png')
+            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # remove all margins
+            plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
         else:
             plt.show()
 

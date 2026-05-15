@@ -10,77 +10,86 @@ Window pigPanel(): Panel_pig
 	NewDataFolder/O root:Packages:pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
+	variable/g root:Packages:pig:ROIsize=2
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
 	pigDefinePathToGetMetadata()
 	// main panel
 	// /w=(left, top, right, bottom)
-	NewPanel/w = (666,111,1055,400) as "Pig — KS analysis"
+	NewPanel/w = (666,111,1055,444) as "Pig — KS analysis"
 	ModifyPanel cbRGB = (0, 13107, 26214)
 	SetDrawLayer UserBack
 	// ks: main box
+	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick=0, fillfgc=(64824,27308,21496)
-	DrawRRect 20,35,370,70
+	DrawRRect 20,35,370,105
 	SetDrawEnv fsize = 16, fstyle = 1, textrgb = (65535,65535,65535)
 	DrawText 33, 30, "Pig - KS analysis"
-	// ks: load movie
-	Button Load, pos={30,43}, size={70,20}, proc=button_loadMovie, title="Load"
-	Button Load, fColor=(16191,18504,18761)
 	// ks: box for FOV 
-	SetVariable FOV, pos={110,43}, size={70,40}, proc=button_setFOV, title="FOV"
-	SetVariable FOV,help={"Field of view in µm @ zoom 1"},fSize=12,fStyle=1
+	SetVariable FOV, pos={30,45}, size={70,30}, proc=button_setFOV, title="FOV"
+	SetVariable FOV,help={"Field of view in µm at zoom 1"},fSize=12,fStyle=1
 	SetVariable FOV,fColor=(65535,65535,65535)
 	SetVariable FOV,limits={0,inf,0},value = root:Packages:pig:FOV
 	// ks: box for alpha 
-	SetVariable alpha, pos={190,43}, size={85,40}, proc=button_setAlpha, title="alpha"
+	SetVariable alpha, pos={107,45}, size={83,30}, proc=button_setAlpha, title="alpha"
 	SetVariable alpha,help={"pre-set significance threshold for p-values"},fSize=12,fStyle=1
 	SetVariable alpha,fColor=(65535,65535,65535)
 	SetVariable alpha,limits={0,inf,0},value = root:Packages:pig:alpha
+	// ks: box for ROIsize
+	SetVariable ROIsize, pos={197,45}, size={83,30}, proc=button_setROIsize, title="ROIsize"
+	SetVariable ROIsize,help={"approx. diameter/side of ROIs, in µm"},fSize=12,fStyle=1
+	SetVariable ROIsize,fColor=(65535,65535,65535)
+	SetVariable ROIsize,limits={0,inf,0},value = root:Packages:pig:ROIsize
+	// ks: load movie
+	Button Load, pos={30,77}, size={100,20}, proc=button_loadMovie, title="Load movie"
+	Button Load, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={290,42}, size={70,20}, proc=button_runKS, title="Run KS"
+	Button runKS, pos={290,57}, size={70,33}, proc=button_runKS, title="Run KS"
 	Button runKS, fColor=(16191,18504,18761)
 	// other functions: main box
+	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (10283,48779,31735)
-	DrawRRect 20,105,370,175
+	DrawRRect 20,140,370,210
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
-	DrawText 33,100,"More"
+	DrawText 33,135,"More"
 	// other functions: buttons
-	Button button1,pos={30,115},size={75,20},proc=button1,title="01"
+	Button button1,pos={30,150},size={75,20},proc=button1,title="01"
 	Button button1,help={"free button"}
 	Button button1,fColor=(16191,18504,18761)
-	Button button2,pos={115,115},size={75,20},proc=button2,title="02"
+	Button button2,pos={115,150},size={75,20},proc=button2,title="02"
 	Button button2,help={"free button"}
 	Button button2,fColor=(16191,18504,18761)
-	Button button3,pos={200,115},size={75,20},proc=button3,title="03"
+	Button button3,pos={200,150},size={75,20},proc=button3,title="03"
 	Button button3,help={"free button"}
 	Button button3,fColor=(16191,18504,18761)
-	Button button4,pos={285,115},size={75,20},proc=button4,title="04"
+	Button button4,pos={285,150},size={75,20},proc=button4,title="04"
 	Button button4,help={"free button"}
 	Button button4,fColor=(16191,18504,18761)
 	// initially free, but now following suggestions from Jose, Marios and Jonny
-	Button getMetadata,pos={30,147},size={100,20},proc=button_getMetadata,title="get metadata"
+	Button getMetadata,pos={30,182},size={100,20},proc=button_getMetadata,title="get metadata"
 	Button getMetadata,help={"retrieves metadata using PIG"}
 	Button getMetadata,fColor=(16191,18504,18761)
-	Button ROIbuddy,pos={145,147},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
+	Button ROIbuddy,pos={145,182},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
 	Button ROIbuddy,help={"ROI buddy, from ART"}
 	Button ROIbuddy,fColor=(16191,18504,18761)
-	Button button7,pos={260,147},size={100,20},proc=button7,title="07"
+	Button button7,pos={260,182},size={100,20},proc=button7,title="07"
 	Button button7,help={"free button"}
 	Button button7,fColor=(16191,18504,18761)	
 	// pig: main box
+	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (64824,27308,21496)
-	DrawRRect 20,210,370,270
+	DrawRRect 20,245,370,315
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
-	DrawText 33,205,"pig - others"
+	DrawText 33,240,"pig - others"
 	// pig: choose script
-	Button pigScript, pos={30,220}, size={100,20}, proc=button_pigScript, title="choose script"
+	Button pigScript, pos={30,256}, size={100,20}, proc=button_pigScript, title="choose script"
 	Button pigScript, fColor=(16191,18504,18761)
 	// pig: run
-	Button pigRun, pos={270,220}, size={90,20}, proc=button_pigRun, title="run"
+	Button pigRun, pos={270,256}, size={90,20}, proc=button_pigRun, title="run"
 	Button pigrun, fColor=(16191,18504,18761)
 	// pig: box for interpreter path
-	SetVariable pigPathToInterpreter, pos={30,245}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
+	SetVariable pigPathToInterpreter, pos={30,287}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
 	SetVariable pigPathToInterpreter, help={"path to python interpreter"},fSize=12,fStyle=1
 	SetVariable pigPathToInterpreter, fColor=(65535,65535,65535)
 	SetVariable pigPathToInterpreter, value = root:Packages:pig:pigPathToPythonInterpreter
@@ -197,6 +206,24 @@ function button_setAlpha(sva) : SetVariableControl
 	return 0
 end
 
+// pig: define ROIsize
+function button_setROIsize(sva) : SetVariableControl
+	STRUCT WMSetVariableAction &sva
+	switch( sva.eventCode )
+		case 1: // mouse up
+		case 2: // Enter key
+		case 3: // Live update
+			Variable dval = sva.dval
+			String sval = sva.sval
+			
+			variable/g root:packages:pig:ROIsize=dval
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
 
 // pig: run ks analysis
 function button_runKS(ba) : ButtonControl
