@@ -11,6 +11,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
 	variable/g root:Packages:pig:ROIsize=2
+	variable/g root:Packages:pig:minDist=3
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -32,20 +33,28 @@ Window pigPanel(): Panel_pig
 	SetVariable FOV,fColor=(65535,65535,65535)
 	SetVariable FOV,limits={0,inf,0},value = root:Packages:pig:FOV
 	// ks: box for alpha 
-	SetVariable alpha, pos={107,45}, size={83,30}, proc=button_setAlpha, title="alpha"
+	SetVariable alpha, pos={105,45}, size={80,30}, proc=button_setAlpha, title="alpha"
 	SetVariable alpha,help={"pre-set significance threshold for p-values"},fSize=12,fStyle=1
 	SetVariable alpha,fColor=(65535,65535,65535)
 	SetVariable alpha,limits={0,inf,0},value = root:Packages:pig:alpha
 	// ks: box for ROIsize
-	SetVariable ROIsize, pos={197,45}, size={83,30}, proc=button_setROIsize, title="ROIsize"
-	SetVariable ROIsize,help={"approx. diameter/side of ROIs, in µm"},fSize=12,fStyle=1
+	SetVariable ROIsize, pos={195,45}, size={80,30}, proc=button_setROIsize, title="ROIsize"
+	SetVariable ROIsize,help={"approx. diameter of ROIs, in µm"},fSize=12,fStyle=1
 	SetVariable ROIsize,fColor=(65535,65535,65535)
 	SetVariable ROIsize,limits={0,inf,0},value = root:Packages:pig:ROIsize
+	// ks: box for minDist
+	SetVariable minDist, pos={280,45}, size={80,30}, proc=button_setMinDist, title="minDist"
+	SetVariable minDist,help={"min dist between ROIs centres, in pixels"},fSize=12,fStyle=1
+	SetVariable minDist,fColor=(65535,65535,65535)
+	SetVariable minDist,limits={0,inf,0},value = root:Packages:pig:minDist
 	// ks: load movie
 	Button Load, pos={30,77}, size={100,20}, proc=button_loadMovie, title="Load movie"
 	Button Load, fColor=(16191,18504,18761)
+	// ks: multiload movie
+	Button multiLoad, pos={140,77}, size={100,20}, proc=button_multiLoad, title="MultiLoad"
+	Button multiLoad, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={290,45}, size={70,50}, proc=button_runKS, title="Run KS"
+	Button runKS, pos={260,77}, size={100,20}, proc=button_runKS, title="Run KS"
 	Button runKS, fColor=(16191,18504,18761)
 	// other functions: main box
 	// /w=(left, top, right, bottom)
@@ -180,6 +189,21 @@ function button_loadMovie(ba) : ButtonControl
 	return 0
 end
 
+// pig: load multiple movies
+function button_multiLoad(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			pigMultiLoad()
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
 
 // pig: define FOV
 function button_setFOV(sva) : SetVariableControl
@@ -230,6 +254,25 @@ function button_setROIsize(sva) : SetVariableControl
 			String sval = sva.sval
 			
 			variable/g root:packages:pig:ROIsize=dval
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// pig: define min distance
+function button_setMinDist(sva) : SetVariableControl
+	STRUCT WMSetVariableAction &sva
+	switch( sva.eventCode )
+		case 1: // mouse up
+		case 2: // Enter key
+		case 3: // Live update
+			Variable dval = sva.dval
+			String sval = sva.sval
+			
+			variable/g root:packages:pig:minDist=dval
 			
 			break
 		case -1: // control being killed

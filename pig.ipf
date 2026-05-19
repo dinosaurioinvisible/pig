@@ -326,7 +326,114 @@ function pigLoadMovie()
 end
 
 
-// 8.
+// 8. 
+// load multiple movies
+function pigMultiLoad()
+	
+	// select movies
+	variable refnum
+	string fileFilters = "tiff,tif"
+	string message = "select files"
+	open/D/R/MULT=1/F=fileFilters/M=message refNum
+	string outputPaths = s_fileName
+	// cancel
+	if (strlen(outputPaths) == 0)
+		abort
+	endif
+	// in case the user is loading from inside another dir
+	setDataFolder root:
+	// number of files selected
+	string sep = "\r"
+	variable nfiles = itemsInList(outputPaths, sep)
+	// use first file basename as folder name
+	string basename = stringFromList(0, outputPaths, sep)
+	basename = basename[0,strsearch(basename,".tif",0)-1]
+	basename = basename[strsearch(basename,":",inf,1)+1,strlen(basename)-1]
+	// replace spaces with underscores (to avoid failure at loading)
+	basename = ReplaceString(" ", basename, "_")
+	// create folder for movie and move loaded movie there
+	newDataFolder/o root:$basename
+	setDataFolder "root:" + basename
+	// iterate 
+	// load, get metadata & de-interleave
+	variable ifile
+	string fdir, fname, fpath, movieName
+	for(ifile=0; ifile < nfiles; ifile+=1)
+		string path = stringFromList(ifile, outputPaths, sep)
+		printf "%d: %s\r", ifile, path	
+		fdir = path[0,strsearch(path,":",inf,1)]
+		fname = path[strsearch(path,":",inf,1)+1,strlen(path)-1]
+		movieName = fname[0,strsearch(fname,".tif",0)-1]
+		movieName = ReplaceString(" ", movieName, "_")
+		// if movie exists, overwrite
+		if (waveExists($movieName))
+			killwaves/z $movieName
+		endif
+		// load normally
+		imageload/q/o/n=$movieName/c=-1 path
+		// flag=0 is no image in imageload
+		if (v_flag == 0)
+			Abort
+		endif
+		// metadata
+		string metadata = s_info
+		variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
+		variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
+		variable frameRate = numberByKey("state.acq.frameRate",s_info,"=","\r")
+		variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
+		variable angleSlow = numberByKey("state.acq.scanAngleMultiplierSlow",s_info,"=","\r")
+		// append metadata to movies
+		nvar fov = root:Packages:pig:FOV
+		note $movieName, "fdir="+fdir
+		note $movieName, "fname="+fname
+		note $movieName, "basename="+movieName
+		note $movieName, "fpath="+path
+		note $movieName, ""
+		note $movieName, "fov=" + num2str(fov)
+		note $movieName, "zoomFactor="+num2str(zoomFactor)
+		note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
+		note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
+		variable fovx = fov * angleFast / zoomFactor
+		variable fovy = fov * angleSlow / zoomFactor
+		fovx = fov * angleFast / zoomFactor
+		fovy = fov * angleSlow / zoomFactor
+		note $movieName, "fovZoom_x=" + num2str(fovx) 
+		note $movieName, "fovZoom_y=" + num2str(fovy)
+		note $movieName, "msPerLine="+num2str(msPerLine)
+		note $movieName, "frameRate="+num2str(frameRate)
+		variable dt = 1/frameRate
+		note $movieName, "dt="+num2str(dt)
+		note $movieName, ""
+		note $movieName, metadata
+		// split channels (using fxs from LoadScanImage
+		variable nChannels = nChannelsFromHeaderx($movieName)
+		// in case there's no info in the header (so nChannels = nan)
+		if (numtype(nChannels) == 2)
+			// print("\nDidn't find info for nChannels in the metadata: assuming 2 channels")
+			nChannels = 2
+		endif
+		splitChannelsx($movieName, nChannels=nChannels)
+		// erase non deinterleaved movie
+		killwaves/z $movieName
+	endfor
+	// concatenate waves
+	string ch1WavesInFolder = WaveList("*_Ch1", ";", "")	
+	concatenate/o/np=2 ch1WavesInFolder, $basename
+	string ch2WavesInFolder = WaveList("*_Ch2", ";", "")	
+	string stimName = basename + "_stim"
+	concatenate/o/np=2 ch2WavesInFolder, $stimName
+	// remove ch1 & ch2 movies
+	for(ifile=0; ifile < nfiles; ifile+=1)
+		string ch1movie = stringFromList(ifile, ch1WavesInFolder, ";")
+		killwaves/z $ch1movie
+		string ch2movie = stringFromList(ifile, ch2WavesInFolder, ";")
+		killwaves/z $ch2movie
+	endfor
+	
+end
+
+
+// 9.
 // select python script
 function pigSelectPythonScript()
 	// d: dialog, r: read only
@@ -359,7 +466,7 @@ function pigSelectPythonScript()
 end
 
 
-// 9.
+// 10.
 // run ks analysis
 function pigRunKS(wave movie)
 	
@@ -380,6 +487,7 @@ function pigRunKS(wave movie)
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
 	nvar ROIsize = root:Packages:pig:ROIsize
+	nvar minDist = root:Packages:pig:minDist
 	// run KS
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
@@ -387,7 +495,7 @@ function pigRunKS(wave movie)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
    	string ks_args
-		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s", num2str(fov), num2str(alpha), num2str(ROIsize)
+		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
    	
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
@@ -458,11 +566,11 @@ function pigRunKS(wave movie)
 	setscale/p z, 0,  dt, "s", $wx
 	// movie with overlayed synapses
 	string wx_overlay = wx + "_overlay"
-	// if (waveDims($wx_overlay) == 4)
-	// endif
 	copyscales $movieWave, $wx_overlay
 	setscale/p z, 0,  dt, "s", $wx_overlay
-	// same base name, different terminations
+	// kkk
+	// this have different terminations
+	
 	string wx_df = wx + "_deltaf"
 	copyscales $movieWave, $wx_df
 	string wx_pm = wx + "_pixelmask"

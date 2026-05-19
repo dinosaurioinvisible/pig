@@ -40,7 +40,7 @@ class KS_pipeline:
             self.fov = fov
             self.alpha = alpha
             self.threshold_percentile = percentile
-            self.min_distance = min_distance
+            self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
             # not changeable from igor
             self.sigma_smooth = sigma_smooth
@@ -518,7 +518,7 @@ class KS_pipeline:
         # plt.title(f"Detected Synapses (n={len(self.synapses)})")
         plt.axis('off')
         # plot synapses
-        for ei,(sy,sx) in enumerate(self.synapses,1):
+        for ei,(sy,sx) in enumerate(self.synapses):
             # s: typographic points ** 2 & typographic points = 1/72 inches.
             # tp = 1*2.54/72 = 0.35277 
             plt.scatter(sx,sy,s=self.roi_radius*100,facecolors='none',edgecolor='orange',linewidths=1.2)
@@ -571,7 +571,7 @@ class KS_pipeline:
         else:
             # add stimulus 
             self.overlay_plus_stimulus(overlay)
-            
+
     # overlay + stimulus 
     # i'm making this more general, in case we want to use it 
     # fot other movies (reg, bc, etc)
@@ -683,9 +683,11 @@ if __name__ == "__main__":
             alpha = float(arg.split('=')[1])
         if arg.startswith('--percentile='):
             percentile = float(arg.split('=')[1])
-        if arg.startswith('--min_distance='):
+        # if arg.startswith('--min_distance='):
+        if arg.startswith('--minDist='):
             min_distance = float(arg.split('=')[1])
-        if arg.startswith('--synapse_size='):
+        # if arg.startswith('--synapse_size='):
+        if arg.startswith('--ROIsize='):
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--interpolate'):
             square = False

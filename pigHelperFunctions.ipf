@@ -2,8 +2,30 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
 // this file contains helper/auxiliary functions for pig
-// to avoid making pig.ipf too confusing to read
-// just using an x before to avoid compilation conflicts
+// to avoid making pig.ipf too confusing, i'm just using an x
+// at the end of the original names 
+// to avoid compilation conflicts
+// and to allow for anyone to look for the original fx, just in case
+
+// split delta (from Pawel)
+function splitDeltaF(wave popwave, variable n_reps)
+
+	variable i, j, k, n_pnts = dimsize(popwave, 0), rep_pnts = round(n_pnts/n_reps)
+	make/o/n=(0) splitDf
+	for (i=0; i<n_reps; i+=1)
+		duplicate/o/rmd=[i*rep_pnts, (i+1)*rep_pnts-1][] popwave, $(nameOfWave(popwave)+"_rep"+num2str(i))
+		// popdf((nameOfWave(popwave)+"_rep"+num2str(i)))
+		
+		if (numpnts(splitDf) == 0)
+			duplicate/o $(nameOfWave(popwave)+"_rep"+num2str(i)+"_DF"), splitDf
+		else
+			concatenate/np=0 {$(nameOfWave(popwave)+"_rep"+num2str(i)+"_DF")}, splitDf
+		endif
+		killwaves/z $(nameOfWave(popwave)+"_rep"+num2str(i)+"_DF"), $(nameOfWave(popwave)+"_rep"+num2str(i))
+	endfor
+	duplicate/o splitDf, $(nameOfWave(popwave)+"_split_DF")
+	killwaves/z splitDf
+end
 
 // mk std map from image (from Z-project)
 function stdev(picwave, outputwave)
@@ -95,6 +117,7 @@ function pigImshow()
 	wave w=$wn
 	Display /W=(451,49,1139,294)/K=1 
 	AppendImage w
+	SetAxis/A/R left
 	ModifyGraph mirror(left)=0,mirror(bottom)=2
 	ModifyGraph axisEnab(bottom)={0,0.85}
 	WMAppend3DImageSlider()
