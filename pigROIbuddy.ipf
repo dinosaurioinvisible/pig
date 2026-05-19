@@ -29,7 +29,8 @@ Function pigROIbuddy(w)
 	variable/g root:packages:pig:CompareROI=0
 	nvar CompareROI=root:packages:pig:CompareROI
 	
-	Display/K=1 /W=(79,45,688,549)/L=DF/B=Time w[*][ROI2display]
+	//Display/K=1 /W=(79,45,688,549)/L=DF/B=Time w[*][ROI2display]
+	Display/K=1 /W=(79,45,688,549)/L=DF w[*][ROI2display]
 	ModifyGraph rgb=(52171,0,5911)
 	AppendImage/T avg
 	AppendImage/T roi
@@ -45,12 +46,17 @@ Function pigROIbuddy(w)
 	ModifyGraph freePos(Time)=0
 	ModifyGraph axisEnab(left)={0.55,1}
 	ModifyGraph axisEnab(DF)={0,0.45}
+	
+	// modifyGraph noLabel(bottom)=2, axThick(bottom)=0
+	// AppendImage/T/B=top avg
+	// modifyGraph axisEnab(Time)={0,1}
+	
 	Label top "µm"
 	Label Time "Time (s)"
 	Label df "ÆF/F"
 	ModifyGraph lblPos(DF)=65
 	ControlBar 30
-	// from Marios
+	// from Marios: append stimulus
 	AppendToGraph/L=DF/C=(0,0,0) ws[][0]
 	
 	SetVariable ShowROI,pos={460,3},size={130,23},proc=pigShowROI,title="ShowROI"
@@ -87,7 +93,8 @@ Function pigShowROI(sva) : SetVariableControl
 			Variable/g root:packages:pig:ROI2display=dval
 			nvar ROI2display=root:packages:pig:ROI2display
 		
-			AppendToGraph/L=DF/B=Time w[][ROI2display]
+			// AppendToGraph/L=DF/B=Time w[][ROI2display]
+			AppendToGraph/L=DF w[][ROI2display]
 			RemoveFromGraph $wn
 			ModifyGraph rgb($wn)=(52171,0,5911)
 			
