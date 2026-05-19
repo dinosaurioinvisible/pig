@@ -11,6 +11,8 @@
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
 #include "pigROIbuddy"
+#include "pigWM4DImageSlider"
+#include "pigZapBadROIs"
 
 
 // ~ index
@@ -158,7 +160,10 @@ end
 // 7.
 // load movie
 function pigLoadMovie()
-
+	
+	// in case the user is loading from inside another dir
+	setDataFolder root:
+	// load normally
 	imageload/q/o/c=-1
 	// flag=0 is no image in imageload
 	if (v_flag == 0)
@@ -180,7 +185,7 @@ function pigLoadMovie()
 	
 	// retrieve necessary info	
 	// this works with the older version of scan image only
-	print s_info
+	// print s_info
 	string metadata = s_info
 	// this is to check access to metadata
 	// get info - to access note info: print note($"movieName")
@@ -291,7 +296,7 @@ function pigLoadMovie()
 	endif
 	splitChannelsx($movieName, nChannels=nChannels)
 
-	// move to movie folder
+	// move files to movie folder
 	variable i
 	string chName, chPath
 	for (i=0; i<nChannels; i+=1)
@@ -316,6 +321,8 @@ function pigLoadMovie()
 	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
 	print "\nloaded movie from: "+filePath
 	
+	// move to new folder in the data browser
+	setDataFolder "root:" + fname
 end
 
 
@@ -355,6 +362,7 @@ end
 // 9.
 // run ks analysis
 function pigRunKS(wave movie)
+	
 	string platform = IgorInfo(2)
 	// path to python interpreter
 	svar pigPathToPython = root:Packages:pig:pigPathToPythonInterpreter
@@ -384,6 +392,28 @@ function pigRunKS(wave movie)
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
+	
+	// location in data browser
+	string movieWave = getWavesDataFolder(movie,2)
+	
+	// if ks files in folder, mk new (avoid confusion)
+	string checkStimName = nameOfWave(movie) + "_sti"
+	if (waveExists($checkStimName))
+		// create folder for movie and move there
+		string newFolderName = checkStimName + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(ROIsize)
+		if (dataFolderExists("root:"+newFolderName))
+			newFolderName = newFolderName + "_copy"
+		endif
+		// if already processed twice, just abort
+		if (dataFolderExists("root:"+newFolderName))
+			print("\nit seems you've already processed this same movie twice?")
+			abort
+		endif
+		newDataFolder/o root:$newFolderName
+		// move to new folder in the data browser
+		setDataFolder $("root:" + newFolderName)
+	endif
+	
 	// load files into igor
 	string path_to_python_output = dirpath+"python_output"
 	LoadFiles(dirpath=path_to_python_output)
@@ -400,8 +430,6 @@ function pigRunKS(wave movie)
 	print "removed temporal files from: "+path_to_python_output
 	
 	// scale ks imported files
-	// location in data browser 
-	string movieWave = getWavesDataFolder(movie,2)
 	// to adjust temporal scaling
 	variable dt = numberByKey("dt",note(movie),"=","\r")
 	// copyscales sourceWave, destinationWave
@@ -430,6 +458,8 @@ function pigRunKS(wave movie)
 	setscale/p z, 0,  dt, "s", $wx
 	// movie with overlayed synapses
 	string wx_overlay = wx + "_overlay"
+	// if (waveDims($wx_overlay) == 4)
+	// endif
 	copyscales $movieWave, $wx_overlay
 	setscale/p z, 0,  dt, "s", $wx_overlay
 	// same base name, different terminations
@@ -442,7 +472,10 @@ function pigRunKS(wave movie)
 	string wx_sm = wx + "_synapses_map"
 	copyscales $movieWave, $wx_sm
 	// for these, time goes in the x axis
+	// also, for traces we want to have the metadata
 	string wx_dff = wx + "_dff_traces"
+	string wx_info = note(movie)
+	note $wx_dff, wx_info
 	string wx_gas = wx + "_gs_amps"
 	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
 	setscale/p x, 0,  dt, "s", $wx_dff
@@ -451,9 +484,9 @@ function pigRunKS(wave movie)
 	string stimulusWaveKS = movieWave+"_stimulus"
 	string stimulusWave = movieWave+"_sti"
 	// if it exists, erase (otherwise yields error)
-		if (waveExists($stimulusWave))
-			killwaves/z $stimulusWave
-		endif
+	if (waveExists($stimulusWave))
+		killwaves/z $stimulusWave
+	endif
 	// have to create a new wave to get rid of col1
 	variable nrows = Dimsize($stimulusWaveKS,0)
 	make/o/n=(nrows) $stimulusWave 
@@ -464,7 +497,12 @@ function pigRunKS(wave movie)
 	killwaves stiKS
 	
 	// make a standar deviation image from processed movie
-	stdev($(nameOfWave($wx)), (nameOfWave($wx)+"_std"))
+	string stdWaveName = nameOfWave($wx)+"_std"
+	if (waveExists($stdWaveName))
+		killwaves/z $stdWaveName
+	endif
+	
+	stdev($(nameOfWave($wx)),stdWaveName)
 	// make std image with ROIs on top
 	// overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
 end
@@ -487,8 +525,9 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+pathToTempFolder
 	else
-		string cmd
-		sprintf cmd, "do shell script \"rm -rf %s\"", pathToTempFolder
+		// string cmd
+		// sprintf cmd, "do shell script \"rm -rf %s\"", pathToTempFolder
+		string cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
 		executeScriptText/b/z cmd
 		print s_value
 	endif

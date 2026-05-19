@@ -14,6 +14,7 @@ from skimage.draw import circle_perimeter
 
 from scipy.ndimage import zoom
 import pandas as pd
+from matplotlib.animation import FuncAnimation
 
 
 class KS_pipeline:
@@ -520,7 +521,7 @@ class KS_pipeline:
         for ei,(sy,sx) in enumerate(self.synapses,1):
             # s: typographic points ** 2 & typographic points = 1/72 inches.
             # tp = 1*2.54/72 = 0.35277 
-            plt.scatter(sx,sy,s=self.roi_radius*1000,facecolors='none',edgecolor='orange',linewidths=1.2)
+            plt.scatter(sx,sy,s=self.roi_radius*100,facecolors='none',edgecolor='orange',linewidths=1.2)
             # write n in list
             plt.text(sx,sy,str(ei),
                 color='red',fontsize=9,
@@ -567,7 +568,27 @@ class KS_pipeline:
             fcopy = os.path.join(self.fdir,self.fname)
             fcopy_path = f'{fcopy}_overlay.tif'
             tf.imwrite(fcopy_path, overlay)
+        else:
+            # add stimulus 
+            self.overlay_plus_stimulus(overlay)
             
+    # overlay + stimulus 
+    # i'm making this more general, in case we want to use it 
+    # fot other movies (reg, bc, etc)
+    def overlay_plus_stimulus(self, movie):
+        fig, (ax_mov, ax_stim) = plt.subplots(2, 1, height_ratios=[4, 1])
+        im = ax_mov.imshow(movie[0])
+        ax_stim.plot(self.stimulus)
+        bar = ax_stim.axvline(0, color='r')
+
+        def update(i):
+            im.set_data(movie[i])
+            bar.set_xdata([i, i])
+            return im, bar
+
+        ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
+        # import pdb; pdb.set_trace()
+        ani.save(f'{self.savepath}_overlay_st.gif', writer='pillow', fps=1000)
 
     # plot best traces
     # TODO: why re-sorting using ΔF/F?

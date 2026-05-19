@@ -17,7 +17,7 @@ Window pigPanel(): Panel_pig
 	pigDefinePathToGetMetadata()
 	// main panel
 	// /w=(left, top, right, bottom)
-	NewPanel/w = (666,111,1055,444) as "Pig — KS analysis"
+	NewPanel/w = (666,111,1055,474) as "Pig — KS analysis"
 	ModifyPanel cbRGB = (0, 13107, 26214)
 	SetDrawLayer UserBack
 	// ks: main box
@@ -25,7 +25,7 @@ Window pigPanel(): Panel_pig
 	SetDrawEnv linethick=0, fillfgc=(64824,27308,21496)
 	DrawRRect 20,35,370,105
 	SetDrawEnv fsize = 16, fstyle = 1, textrgb = (65535,65535,65535)
-	DrawText 33, 30, "Pig - KS analysis"
+	DrawText 33, 30, "KS analysis"
 	// ks: box for FOV 
 	SetVariable FOV, pos={30,45}, size={70,30}, proc=button_setFOV, title="FOV"
 	SetVariable FOV,help={"Field of view in µm at zoom 1"},fSize=12,fStyle=1
@@ -45,12 +45,12 @@ Window pigPanel(): Panel_pig
 	Button Load, pos={30,77}, size={100,20}, proc=button_loadMovie, title="Load movie"
 	Button Load, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={290,57}, size={70,33}, proc=button_runKS, title="Run KS"
+	Button runKS, pos={290,45}, size={70,50}, proc=button_runKS, title="Run KS"
 	Button runKS, fColor=(16191,18504,18761)
 	// other functions: main box
 	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (10283,48779,31735)
-	DrawRRect 20,140,370,210
+	DrawRRect 20,140,370,240
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
 	DrawText 33,135,"More"
 	// other functions: buttons
@@ -66,30 +66,43 @@ Window pigPanel(): Panel_pig
 	Button button4,pos={285,150},size={75,20},proc=button4,title="04"
 	Button button4,help={"free button"}
 	Button button4,fColor=(16191,18504,18761)
+	Button button5,pos={30,180},size={75,20},proc=button5,title="05"
+	Button button5,help={"free button"}
+	Button button5,fColor=(16191,18504,18761)
+	Button button6,pos={115,180},size={75,20},proc=button6,title="06"
+	Button button6,help={"free button"}
+	Button button6,fColor=(16191,18504,18761)
+	Button button7,pos={200,180},size={75,20},proc=button7,title="07"
+	Button button7,help={"free button"}
+	Button button7,fColor=(16191,18504,18761)
+	// button for show
+	Button show,pos={285,180},size={75,20},proc=button_show,title="show"
+	Button show,help={"display using imshow()"}
+	Button show,fColor=(16191,18504,18761)
 	// initially free, but now following suggestions from Jose, Marios and Jonny
-	Button getMetadata,pos={30,182},size={100,20},proc=button_getMetadata,title="get metadata"
+	Button getMetadata,pos={30,210},size={100,20},proc=button_getMetadata,title="get metadata"
 	Button getMetadata,help={"retrieves metadata using PIG"}
 	Button getMetadata,fColor=(16191,18504,18761)
-	Button ROIbuddy,pos={145,182},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
+	Button ROIbuddy,pos={145,210},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
 	Button ROIbuddy,help={"ROI buddy, from ART"}
 	Button ROIbuddy,fColor=(16191,18504,18761)
-	Button button7,pos={260,182},size={100,20},proc=button7,title="07"
-	Button button7,help={"free button"}
-	Button button7,fColor=(16191,18504,18761)	
+	Button zapBadROIs,pos={260,210},size={100,20},proc=button_zapBadROIs,title="Zap bad ROIs"
+	Button zapBadROIs,help={"Discard ROIs with bad signals"}
+	Button zapBadROIs,fColor=(16191,18504,18761)	
 	// pig: main box
 	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (64824,27308,21496)
-	DrawRRect 20,245,370,315
+	DrawRRect 20,275,370,345
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
-	DrawText 33,240,"pig - others"
+	DrawText 33,270,"pig - others"
 	// pig: choose script
-	Button pigScript, pos={30,256}, size={100,20}, proc=button_pigScript, title="choose script"
+	Button pigScript, pos={30,285}, size={100,20}, proc=button_pigScript, title="choose script"
 	Button pigScript, fColor=(16191,18504,18761)
 	// pig: run
-	Button pigRun, pos={270,256}, size={90,20}, proc=button_pigRun, title="run"
+	Button pigRun, pos={270,285}, size={90,20}, proc=button_pigRun, title="run"
 	Button pigrun, fColor=(16191,18504,18761)
 	// pig: box for interpreter path
-	SetVariable pigPathToInterpreter, pos={30,287}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
+	SetVariable pigPathToInterpreter, pos={30,315}, size={333,20}, proc=button_setPythonInterpreter, title="python interpreter"
 	SetVariable pigPathToInterpreter, help={"path to python interpreter"},fSize=12,fStyle=1
 	SetVariable pigPathToInterpreter, fColor=(65535,65535,65535)
 	SetVariable pigPathToInterpreter, value = root:Packages:pig:pigPathToPythonInterpreter
@@ -240,8 +253,7 @@ function button_runKS(ba) : ButtonControl
 				endif	
 			wave picwave=$name
 			
-			pigRunKS(picwave)
-			
+			pigRunKS(picwave)	
 			
 			break
 		case -1: // control being killed
@@ -360,6 +372,51 @@ function button4(ba) : ButtonControl
 	return 0
 end
 
+// button 05
+function button5(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 05
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 06
+function button6(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 06
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+// button 07
+function button7(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function 07
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
 
 /////////////////////////////
 //									//
@@ -368,13 +425,30 @@ end
 /////////////////////////////
 
 
-// button 05
+// 08. Show
+function button_show(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// function: show 
+			pigImshow()
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+
+// 09. metadata
 function button_GetMetadata(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 
-			// function 05: get metadata
+			// function: get metadata
 			string list=wavelist("*",";","DIMS:3")
 			string name
 			prompt name, "pick movie (in current data folder)", popup,list
@@ -393,20 +467,21 @@ function button_GetMetadata(ba) : ButtonControl
 	return 0
 end
 
-// button 06
+// 10. ROI buddy
 function button_ROIbuddy(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 			
-			// function 06: ROI buddy
-			string list=wavelist("*",";","DIMS:2")
+			// function: ROI buddy
+			string list=wavelist("*traces*",";","DIMS:2")
 			string name
 			prompt name, "Data wave", popup,list
 			doprompt "Pick data to examine ", name
 				if(V_flag==1)
 					Abort
-				endif	
+				endif
+				
 			wave w=$name
 			pigROIbuddy(w)
 			
@@ -417,13 +492,23 @@ function button_ROIbuddy(ba) : ButtonControl
 	return 0
 end
 
-// button 07
-function button7(ba) : ButtonControl
+// 11. Zap Bad ROIs
+function button_zapBadROIs(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			// function 07
+			// function: ROI buddy
+			string list=wavelist("*traces*",";","DIMS:2")
+			string name
+			prompt name, "Data wave", popup,list
+			doprompt "Pick data to examine ", name
+				if(V_flag==1)
+					Abort
+				endif
+				
+			wave w=$name
+			zapBadROIs(w)
 			
 			break
 		case -1: // control being killed
