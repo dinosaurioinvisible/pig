@@ -411,11 +411,17 @@ class KS_pipeline:
         # txt info
         if self.igor:
             f = open(f'{self.savepath}_info.txt', 'w')
+            f.write(f'movie={self.savepath}\n')
+            # input from Igor
+            f.write(f'fov={self.fov}\n')
+            f.write(f'alpha={self.alpha}\n')
+            f.write(f'roiSize={self.synapseSize}\n')
+            f.write(f'minDist={self.min_distance}\n')
+            # processing parameters
             f.write(f'nframes={self.nframes}\n')
             f.write(f'frameRate={self.frameRate}\n')
             f.write(f'duration={self.duration}\n')
             f.write(f'dt={self.dt}\n')
-            f.write(f'fov={self.fov}\n')
             f.write(f'zoomFactor={self.zoomFactor}\n')
             f.write(f'scanAngleMultFast={self.scanAngleMultFast}\n')
             f.write(f'scanAngleMultSlow={self.scanAngleMultSlow}\n')
