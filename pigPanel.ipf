@@ -13,6 +13,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:ROIsize=2
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
+	variable/g root:Packages:pig:mkVideos=1
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -49,14 +50,18 @@ Window pigPanel(): Panel_pig
 	SetVariable minDist,fColor=(65535,65535,65535)
 	SetVariable minDist,limits={0,inf,0},value = root:Packages:pig:minDist
 	// ks: load movie
-	Button Load, pos={30,77}, size={100,20}, proc=button_loadMovie, title="Load movie"
+	Button Load, pos={30,77}, size={85,20}, proc=button_loadMovie, title="Load movie"
 	Button Load, fColor=(16191,18504,18761)
 	// ks: multiload movie
-	Button multiLoad, pos={140,77}, size={100,20}, proc=button_multiLoad, title="MultiLoad"
+	Button multiLoad, pos={125,77}, size={85,20}, proc=button_multiLoad, title="MultiLoad"
 	Button multiLoad, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={260,77}, size={100,20}, proc=button_runKS, title="Run KS"
+	Button runKS, pos={225,77}, size={85,20}, proc=button_runKS, title="Run KS"
 	Button runKS, fColor=(16191,18504,18761)
+	// ks: make overlay & overlay + input movies
+	checkBox mkVideos, pos={320,80}, size={10,20}, proc=pigMakeVideos, title="Save"
+	checkBox mkVideos, help={"output overlay & overlay + stimulus videos"}, fSize=12, fStyle=1
+	checkBox mkVideos, fsize=12, side=0, value=0
 	// other functions: main box
 	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (10283,48779,31735)
@@ -86,11 +91,11 @@ Window pigPanel(): Panel_pig
 	Button button7,help={"free button"}
 	Button button7,fColor=(16191,18504,18761)
 	// button for show
-	Button show,pos={285,180},size={75,20},proc=button_show,title="show"
+	Button show,pos={285,180},size={75,20},proc=button_show,title="Show"
 	Button show,help={"display using imshow()"}
 	Button show,fColor=(16191,18504,18761)
 	// initially free, but now following suggestions from Jose, Marios and Jonny
-	Button getMetadata,pos={30,210},size={100,20},proc=button_getMetadata,title="get metadata"
+	Button getMetadata,pos={30,210},size={100,20},proc=button_getMetadata,title="Get metadata"
 	Button getMetadata,help={"retrieves metadata using PIG"}
 	Button getMetadata,fColor=(16191,18504,18761)
 	Button ROIbuddy,pos={145,210},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
@@ -282,13 +287,30 @@ function button_setMinDist(sva) : SetVariableControl
 	return 0
 end
 
+// checkbox for making videos
+Function pigMakeVideos(cba) : CheckBoxControl
+	STRUCT WMCheckboxAction &cba	
+	switch( cba.eventCode )
+		case 2: // mouse up
+		
+			variable/g root:packages:pig:mkVideos = cba.checked
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+
+	return 0
+end
+
 // pig: run ks analysis
 function button_runKS(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 			
-			string list=wavelist("*",";","DIMS:3")
+			// this removes all the ks processed movies from the list
+			string list=wavelist("!*_reg*",";","DIMS:3")
 			string name
 			prompt name, "pick movie (in current data folder)", popup,list
 			doprompt "pick movie ", name

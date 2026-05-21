@@ -1,6 +1,7 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
 // slightly modified version of the original to accommodate data from KS analysis
+// I used Marios' ROI buddy version to include the stimulus
 
 Function pigROIbuddy(w)
 
@@ -19,17 +20,16 @@ Function pigROIbuddy(w)
 	// this assumes the processing made by the KS algorithm: 
 	// registration, interpolation/squaring & bleach correction
 	string std_image = basename + "_reg_isq_bc_std"
-	// print "background file: " + std_image
 	wave avg = $std_image
 	string roin = basename + "_reg_isq_bc_roimask"
 	wave roi = $roin
-	// print "roi file" + roin
-	
 	variable/g root:packages:pig:ROI2display=0
 	nvar ROI2display=root:packages:pig:ROI2display
 	variable/g root:packages:pig:CompareROI=0
 	nvar CompareROI=root:packages:pig:CompareROI
 	
+	// all the commented lines were actually causing double plotting
+	// i'm not deleting them for now, just in case
 	//Display/K=1 /W=(79,45,688,549)/L=DF/B=Time w[*][ROI2display]
 	Display/K=1 /W=(79,45,688,549)/L=DF w[*][ROI2display]
 	ModifyGraph rgb=(52171,0,5911)
@@ -39,7 +39,6 @@ Function pigROIbuddy(w)
 	ModifyImage $roin ctab= {*,0,Grays,0}
 	ModifyImage $roin maxRGB=nan
 	ModifyImage $roin explicit=1,eval={-1,52171,0,5911} 
-	//,eval={0,-1,-1,-1},eval={255,-1,-1,-1}
 	ModifyGraph mirror(left)=0,mirror(top)=0
 	ModifyGraph standoff(top)=0
 	// ModifyGraph lblPos(left)=53,lblPos(Time)=47
@@ -47,13 +46,11 @@ Function pigROIbuddy(w)
 	// ModifyGraph freePos(Time)=0
 	ModifyGraph axisEnab(left)={0.55,1}
 	ModifyGraph axisEnab(DF)={0,0.45}
-	
 	// modifyGraph noLabel(bottom)=2, axThick(bottom)=0
 	// AppendImage/T/B=top avg
 	// modifyGraph axisEnab(Time)={0,1}
-	
 	Label top "µm"
-	Label Time "Time (s)"
+	// Label Time "Time (s)"
 	Label df "ÆF/F"
 	ModifyGraph lblPos(DF)=65
 	ControlBar 30
@@ -63,7 +60,6 @@ Function pigROIbuddy(w)
 	SetVariable ShowROI,pos={460,3},size={130,23},proc=pigShowROI,title="ShowROI"
 	SetVariable ShowROI limits={0,dimsize(w,1)-1,1}
 	SetVariable ShowROI,fSize=15,value=ROI2display
-	
 	CheckBox Compare,pos={435,7},size={16,15},proc=pigCompareCB,title=""
 	CheckBox Compare,value= 0,side= 1
 	SetVariable Compar,pos={256,3},size={172,23},proc=pigCompareROIsetvar,title="Compare ROI#"

@@ -25,6 +25,7 @@ class KS_pipeline:
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
         deinterleave = True,            # not needed for concatenated movies
+        mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
         sigma_smooth = 0,               # for gaussian filter in ΔF map
@@ -32,8 +33,7 @@ class KS_pipeline:
         lambda_reg = 0.05,              # regul. strength in ridge regression
         edge_margin = 3,                # discarded, could be variable
         # for debugging
-        igor = True,                    # for saving & then loading into igor
-        mk_videos = False               # makes 2 videos in same folder
+        igor = True                     # for saving & then loading into igor
         ):
             # chosen in igor
             self.fpath = fpath
@@ -574,13 +574,14 @@ class KS_pipeline:
         for ch, val in enumerate(color):
             overlay[:, rr, cc, ch] = val
         # save
-        if self.mk_videos:
+        if self.igor:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
-            # save a copy in same folder
-            fcopy = os.path.join(self.fdir,self.fname)
-            fcopy_path = f'{fcopy}_overlay.tif'
-            tf.imwrite(fcopy_path, overlay)
-            self.overlay_plus_stimulus(overlay)
+            if self.mk_videos:
+                # save a copy in same folder
+                fcopy = os.path.join(self.fdir,self.fname)
+                fcopy_path = f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
+                tf.imwrite(fcopy_path, overlay)
+                self.overlay_plus_stimulus(overlay)
 
 
     # overlay + stimulus 
@@ -694,10 +695,10 @@ if __name__ == "__main__":
     synapse_size = 2
     igor = True                 # mostly for debugging
     deinterleave = True         # has to be changed for concatenated movies
-    # TODO
-    mk_videos = True            # overlay and overlay + stimulus
+    mk_videos = False           # overlay and overlay + stimulus
+    # look for arguments
     for ei,arg in enumerate(sys.argv):
-        # can be changed from panel in Igor
+        # these can be changed from panel in Igor
         if arg.startswith('--fov='):
             fov = float(arg.split('=')[1])
         if arg.startswith('--alpha='):
@@ -708,10 +709,10 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--skip-deint'):
             deinterleave = False
-        if arg == '--mk_videos':
+        if arg == '--mk-videos':
             mk_videos = True
         # can be changed from terminal
-        if arg == '--not_igor':
+        if arg == '--not-igor':
             igor = False
     x = KS_pipeline(fpath=path_to_movie,
         fov=fov,

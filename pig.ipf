@@ -6,7 +6,7 @@
 #include "pigGetMetadata"
 // these have been previously developed in the lab
 // i have modified them (more or less) & added them to the PIG folder
-// for stand-alone use, and to avoid confusion from diff versions
+// for stand-alone use, and to avoid compilation confusions/issues
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
 #include "pigROIbuddy"
@@ -119,7 +119,7 @@ function pigDefinePythonInterpreterPath()
 	// try to read python interpreter location from txt file in pig folder
 	// r: read only, z: prevents abort if file doesn't exist
 	open/r/z fref as pigPythonPath_txt
-	// if not, user has choose an interpreter
+	// if not, user has to choose an interpreter
 	if (v_flag == 0)
 		freadLine fref, pathToPython
 		close fref
@@ -512,6 +512,7 @@ function pigRunKS(wave movie)
 	nvar ROIsize = root:Packages:pig:ROIsize
 	nvar minDist = root:Packages:pig:minDist
 	svar ccMovies = root:Packages:pig:ccMovies
+	nvar mkVideos = root:Packages:pig:mkVideos
 	// if ks files in folder, mk new (avoid confusion)
 	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(ROIsize) + "_d" + num2str(minDist)
 	// to avoid naming problems for folder (bad character)
@@ -538,9 +539,16 @@ function pigRunKS(wave movie)
 	else
    	string ks_args
 		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+		// if mkVideos, create output videos in folder
+		if (mkVideos == 1)
+			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+		endif
 		// if concatenated, skip deinterleave 
 		if (ccx > -1)
 			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+			if (mkVideos == 1)
+				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+			endif
    	endif
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
