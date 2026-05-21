@@ -12,6 +12,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:alpha=0.05
 	variable/g root:Packages:pig:ROIsize=2
 	variable/g root:Packages:pig:minDist=3
+	string/g root:Packages:pig:ccMovies=""
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()

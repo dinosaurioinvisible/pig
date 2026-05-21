@@ -22,47 +22,43 @@ class KS_pipeline:
         fpath,                          # path to movie
         fov = 610,                      # field of view at zoom = 1
         alpha = 0.05,                   # threshold for p-value significance
-        percentile = 70,                # for peaks
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
+        deinterleave = True,            # not needed for concatenated movies
         # not definable from terminal
+        percentile = 70,                # for peaks
         sigma_smooth = 0,               # for gaussian filter in ΔF map
         sigma_fit = 1,                  # for 2d gaussian fit
         lambda_reg = 0.05,              # regul. strength in ridge regression
-        edge_margin = 3,                # could be variable
-        # binary options
-        deinterleave = True,
-        square = True,
-        igor = True,
-        mk_plots = False
+        edge_margin = 3,                # discarded, could be variable
+        # for debugging
+        igor = True,                    # for saving & then loading into igor
+        mk_videos = False               # makes 2 videos in same folder
         ):
+            # chosen in igor
             self.fpath = fpath
             self.fov = fov
             self.alpha = alpha
-            self.threshold_percentile = percentile
             self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
+            self.deinterleave = deinterleave
+            # pending
+            self.mk_videos = mk_videos
             # not changeable from igor
+            self.threshold_percentile = percentile
             self.sigma_smooth = sigma_smooth
             self.sigma_fit = sigma_fit
             self.lambda_reg = lambda_reg
             self.edge_margin = edge_margin
             # binary options
-            self.deinterleave = deinterleave
-            self.square = square
             self.igor = igor
-            self.mk_plots = mk_plots
             self.run()
 
     def run(self):
-        # load & pre-process
+        # load & pre-processing
         self.load_movie()
         self.register()
-        # if False:
-        if self.square:
-            self.interpolate_square()
-        else:
-            self.interpolate()
+        self.interpolate_square()
         self.bleach_correction()
         # setup search
         self.define_roi_size()
@@ -76,11 +72,9 @@ class KS_pipeline:
             # extract traces
             self.ridge_demixing()
             self.compute_dff_traces()
-            self.overlay_synapses()
             self.plot_synapses()
-            if self.mk_plots:
-                self.plot_traces()
-                self.plot_raster()
+            self.overlay_synapses()
+
 
 
     # TODO: use np.arange or linspace?
@@ -94,14 +88,18 @@ class KS_pipeline:
         if self.igor:
             self.mk_names()
             print(f'loaded movie from: {self.fpath}')
+        # in case movie is already deinterleaved
+        self.movie = raw_movie
         # metadata (only for scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
-            self.movie = raw_movie[:,0,:,:]
+            if self.deinterleave:
+                self.movie = raw_movie[:,0,:,:]
         else:
             self.get_metadata(x, datatype='ImageDescription')
-            self.movie = raw_movie[0::2]
+            if self.deinterleave:
+                self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
@@ -144,18 +142,23 @@ class KS_pipeline:
 
     # makes steps from linear arr with changing values
     def mk_stimulus(self, raw_movie, delta=0.05):
-        # make stimulus array (depending on microscope)
-        if len(raw_movie.shape) == 4:
-            self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
-        else:
-            self.stimulus = raw_movie[1::2].mean(axis=(1,2))
-        stimulus_txt = os.path.join(self.fdir,"stim_frames.txt")
+        # in some cases, ch2 will be empty
+        # like in emily & elliot's movies
+        # and the only way to know the stimulus will be to access some file
+        # this is assuming the name of the file is this
+        stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
         if os.path.isfile(stimulus_txt):
             with open(stimulus_txt, "r") as f:
                 stim_txt = f.read()
             self.stimulus = np.array(stim_txt.split('\n')[1:-1], dtype=int)
+        else:
+            # make stimulus array (depending on microscope)
+            if len(raw_movie.shape) == 4:
+                self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
+            else:
+                self.stimulus = raw_movie[1::2].mean(axis=(1,2))
         # normalize
-        if self.stimulus.max() > 1:
+        if self.stimulus.max() > 5:
             self.stimulus = self.stimulus/self.stimulus.max()
         # in theory there's no capture of signal t=0
         # so array should go from 0.05 to t_f
@@ -193,7 +196,9 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # we know that nrows <= ncols
+    # this was working in the previous version
+    # it needs fixing now, or remaking
+    # i'm leaving it only in case someone wants to experiment later
     def interpolate(self):
         # interpolates to make it squared (x = 128)
         zoom_ratio = self.movie.shape[2]/self.movie.shape[1]
@@ -300,7 +305,7 @@ class KS_pipeline:
         # how many pixels per synapse + round it up, because most likely
         # synapses won't fit exactly the pixel grid -> |(| |)|
         self.roi_radius = np.ceil(self.synapseSize/self.pixelSize)/2
-        # if roi radius < min distance between peaks
+        # if min distance between peaks < roi radius (radius of gaussians)
         # then the demixing won't make sense
         if self.min_distance < self.roi_radius:
             self.min_distance = int(self.roi_radius) + 1
@@ -534,7 +539,8 @@ class KS_pipeline:
                 ha='center',va='center',fontweight='bold')
         plt.tight_layout()
         if self.igor:
-            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)  # remove all margins
+            # remove all margins
+            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
             plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
         else:
             plt.show()
@@ -568,33 +574,43 @@ class KS_pipeline:
         for ch, val in enumerate(color):
             overlay[:, rr, cc, ch] = val
         # save
-        if self.igor:
+        if self.mk_videos:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             # save a copy in same folder
             fcopy = os.path.join(self.fdir,self.fname)
             fcopy_path = f'{fcopy}_overlay.tif'
             tf.imwrite(fcopy_path, overlay)
-        else:
-            # add stimulus 
             self.overlay_plus_stimulus(overlay)
+
 
     # overlay + stimulus 
     # i'm making this more general, in case we want to use it 
     # fot other movies (reg, bc, etc)
     def overlay_plus_stimulus(self, movie):
+        import matplotlib as mpl
+        mpl.rcParams['animation.ffmpeg_path'] = '/opt/homebrew/bin/ffmpeg'
+        
         fig, (ax_mov, ax_stim) = plt.subplots(2, 1, height_ratios=[4, 1])
         im = ax_mov.imshow(movie[0])
-        ax_stim.plot(self.stimulus)
+        # ax_stim.plot(self.stimulus)
+        ax_stim.plot(*self.stimulus2d)
         bar = ax_stim.axvline(0, color='r')
 
         def update(i):
             im.set_data(movie[i])
-            bar.set_xdata([i, i])
+            # movie time in seconds
+            t = i / self.frameRate
+            bar.set_xdata([t, t])
             return im, bar
 
         ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
         # import pdb; pdb.set_trace()
-        ani.save(f'{self.savepath}_overlay_st.gif', writer='pillow', fps=1000)
+        # ani.save(f'{self.savepath}_overlay_st.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
+        # save a copy in folder
+        fcopy = os.path.join(self.fdir,self.fname)
+        ani.save(f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
+        plt.close()
+    
 
     # plot best traces
     # TODO: why re-sorting using ΔF/F?
@@ -671,45 +687,40 @@ class KS_pipeline:
 # to run from terminal
 if __name__ == "__main__":
     path_to_movie = sys.argv[1]
+    # default values, these are defined from Igor
     fov = 610
     alpha = 0.05
-    percentile = 70
     min_distance = 3
     synapse_size = 2
-    # method for interpolation
-    square = True
-    # outputting for igor loading
-    igor = True
-    # plots (not for igor)
-    mk_plots = False
+    igor = True                 # mostly for debugging
+    deinterleave = True         # has to be changed for concatenated movies
+    # TODO
+    mk_videos = True            # overlay and overlay + stimulus
     for ei,arg in enumerate(sys.argv):
+        # can be changed from panel in Igor
         if arg.startswith('--fov='):
             fov = float(arg.split('=')[1])
         if arg.startswith('--alpha='):
             alpha = float(arg.split('=')[1])
-        if arg.startswith('--percentile='):
-            percentile = float(arg.split('=')[1])
-        # if arg.startswith('--min_distance='):
         if arg.startswith('--minDist='):
             min_distance = float(arg.split('=')[1])
-        # if arg.startswith('--synapse_size='):
         if arg.startswith('--ROIsize='):
             synapse_size = float(arg.split('=')[1])
-        if arg.startswith('--interpolate'):
-            square = False
+        if arg.startswith('--skip-deint'):
+            deinterleave = False
+        if arg == '--mk_videos':
+            mk_videos = True
+        # can be changed from terminal
         if arg == '--not_igor':
             igor = False
-        if arg == '--make_plots':
-            mk_plots = True
     x = KS_pipeline(fpath=path_to_movie,
         fov=fov,
         alpha=alpha,
-        percentile=percentile,
         min_distance=min_distance,
         synapse_size=synapse_size,
-        square=square,
         igor=igor,
-        mk_plots=mk_plots,
+        deinterleave=deinterleave,
+        mk_videos=mk_videos,
         )
 
 

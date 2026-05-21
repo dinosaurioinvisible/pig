@@ -49,6 +49,7 @@ function runCommandOnWindowsCmd(string command)
 	print s_value
 end
 
+
 // 2.
 function runCommandOnMacosShell(string command)
 	string igorcmdx
@@ -93,6 +94,7 @@ function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_pytho
    print "s_value:"
    print s_value
 end
+
 
 
 // 5.
@@ -156,6 +158,7 @@ function pigDefinePathToKS()
 	endif
 	string/g root:Packages:pig:pigPathToKS = pathToKS
 end
+
 
 
 // 7.
@@ -229,7 +232,7 @@ function pigLoadMovie()
 		appendMetadata($movieName)
 		// now we need the values for scaling
 		string info = note($movieName)
-		// append to notes
+		// get data from same notes
 		zoomFactor = NumberByKey("zoomFactor", info, "=", "\r")
 		angleFast = NumberByKey("scanAngleMultiplierFast", info, "=", "\r")
 		angleSlow = NumberByKey("scanAngleMultiplierSlow", info, "=", "\r")
@@ -316,15 +319,18 @@ function pigLoadMovie()
 	string stimulusWaveDefault = cwd+"timewave"
 	string stimulusWaveCh2res = movieName+"_ch2stim"
 	// if it exists, erase (otherwise yields error)
-		if (waveExists($stimulusWaveCh2res))
-			killwaves/z $stimulusWaveCh2res
-		endif
+	if (waveExists($stimulusWaveCh2res))
+		killwaves/z $stimulusWaveCh2res
+	endif
 	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
-	print "\nloaded movie from: "+filePath
+	// ch2res makes 1d wave, so has to be scaled in x
+	setscale /P x, 0, dt,"s",$stimulusWaveCh2res
 	
 	// move to new folder in the data browser
 	setDataFolder "root:" + fname
+	print "\nloaded movie from: "+filePath
 end
+
 
 
 // 8. 
@@ -400,6 +406,9 @@ function pigMultiLoad()
 		fovy = fov * angleSlow / zoomFactor
 		note $movieName, "fovZoom_x=" + num2str(fovx) 
 		note $movieName, "fovZoom_y=" + num2str(fovy)
+		// this will change after the KS squaring
+		// note $movieName, "pixelSize_x="
+		// note $movieName, "pixelSize_y="
 		note $movieName, "msPerLine="+num2str(msPerLine)
 		note $movieName, "frameRate="+num2str(frameRate)
 		variable dt = 1/frameRate
@@ -417,11 +426,12 @@ function pigMultiLoad()
 		// erase non deinterleaved movie
 		killwaves/z $movieName
 	endfor
+	
 	// concatenate waves
 	string ch1WavesInFolder = WaveList("*_Ch1", ";", "")	
 	concatenate/o/np=2 ch1WavesInFolder, $basename
 	string ch2WavesInFolder = WaveList("*_Ch2", ";", "")	
-	string stimName = basename + "_stim"
+	string stimName = basename + "_ch2cc"
 	concatenate/o/np=2 ch2WavesInFolder, $stimName
 	// remove ch1 & ch2 movies
 	for(ifile=0; ifile < nfiles; ifile+=1)
@@ -430,8 +440,53 @@ function pigMultiLoad()
 		string ch2movie = stringFromList(ifile, ch2WavesInFolder, ";")
 		killwaves/z $ch2movie
 	endfor
+		
+	// get deltas to scale 
+	// not the same, but basically from apply header info (in LoadScanImage)
+	variable x_res,y_res
+	variable timePerLine = msPerLine/1000
+	x_res = fov / zoomFactor * angleFast / dimsize($basename,0)
+	y_res = fov / zoomFactor * angleSlow / dimsize($basename,1)
+	// setscale dim, num1, num2 (x: rows, y: cols)
+	// /p is for changing the delta value according to num2
+	setscale /p x, 0, x_res,"µm",$basename
+	setscale /p y, 0, y_res,"µm",$basename
+	variable z_res
+	z_res = timePerLine *  dimsize($basename,1)
+	setscale /P z, 0, z_res,"s",$basename
 	
+	// add movie to the list of concatenated
+	svar ccMovies = root:Packages:pig:ccMovies
+	ccMovies += basename+";"
+	// make stimulus file
+	waveCh2lineRes($stimName)
+	string ch2stim = basename+"_ch2stim"
+	if (waveExists($ch2stim))
+		killwaves/z $ch2stim
+	endif
+	rename timewave, $ch2stim
+	// ch2res makes 1d wave, so has to be scaled in x
+	setscale /P x, 0, dt,"s",$ch2stim
+	// ch2res values are too high (sum all matrix per frame)
+	wave ch2stimWave = $ch2stim
+	ch2stimWave = ch2stimWave / 1000000
+
+	// export to txt
+	// this is needed, because concat movie is just ch1
+	// so ks in python has to read the stimulus from the txt
+	newPath/o/q symbfdir, fdir
+	// save /g=general text, /m=termination
+	
+	// TODO kkk
+	// currently working on this part
+	// ch2lineRes gives too many points
+	// save/g/m="\n"/DLIM=","/o/p=symbfdir ch2stimWave as "stimulus.txt"
+	
+	// change name back to ch2 (remove the 'cc' from concat ch2s)
+	string stimName0 = basename + "_ch2"
+	rename $stimName, $stimName0
 end
+
 
 
 // 9.
@@ -456,6 +511,25 @@ function pigRunKS(wave movie)
 	nvar alpha = root:Packages:pig:alpha
 	nvar ROIsize = root:Packages:pig:ROIsize
 	nvar minDist = root:Packages:pig:minDist
+	svar ccMovies = root:Packages:pig:ccMovies
+	// if ks files in folder, mk new (avoid confusion)
+	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(ROIsize) + "_d" + num2str(minDist)
+	// to avoid naming problems for folder (bad character)
+	newFolderName = ReplaceString(".", newFolderName, "")
+	if (dataFolderExists("root:" + newFolderName))
+		// prevent running same exp (same movie & params)
+		print("\nit seems you've already processed this same movie & parameters?\n")
+		abort
+	endif
+	
+	// create & move to new folder in the data browser
+	newDataFolder/o root:$newFolderName
+	setDataFolder $("root:" + newFolderName)
+	// check if concatenated or not (cc do not need deinterleaving)
+	string bn = stringByKey("basename",note(movie),"=","\r")
+	// whichListItem return the index, if found
+	variable ccx = whichListItem(bn, ccMovies)
+	
 	// run KS
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
@@ -464,23 +538,16 @@ function pigRunKS(wave movie)
 	else
    	string ks_args
 		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
-   	
+		// if concatenated, skip deinterleave 
+		if (ccx > -1)
+			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+   	endif
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
 	
 	// location in data browser
 	string movieWave = getWavesDataFolder(movie,2)
-	
-	// if ks files in folder, mk new (avoid confusion)
-	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(ROIsize) + "_d" + num2str(minDist)
-	if (dataFolderExists("root:" + newFolderName))
-		print("\nit seems you've already processed this same movie?\n")
-		abort
-	endif
-	// create & move to new folder in the data browser
-	newDataFolder/o root:$newFolderName
-	setDataFolder $("root:" + newFolderName)
 	
 	// load files into igor
 	string path_to_python_output = dirpath+"python_output"
@@ -540,6 +607,7 @@ function pigRunKS(wave movie)
 	copyscales $movieWave, $wx_rm
 	string wx_sm = wx + "_synapses_map"
 	copyscales $movieWave, $wx_sm
+	
 	// for these, time goes in the x axis
 	// also, for traces we want to have the metadata
 	string wx_dff = wx + "_dff_traces"
@@ -551,7 +619,7 @@ function pigRunKS(wave movie)
 	setscale/p x, 0,  dt, "s", $wx_gas
 	
 	// redimension stimulus wave from python
-	string stimulusWaveKS = movieWave+"_stimulus"
+	string stimulusWaveKS = cwdir + basename +"_stimulus"
 	// we may have changed folders so:
 	string stimulusWave = cwdir + basename + "_stim"
 	// if it exists, erase (otherwise yields error)
@@ -566,7 +634,7 @@ function pigRunKS(wave movie)
 	sti = stiKS[p][1]
 	setScale/p x 0, dt, "s", sti
 	killwaves stiKS
-	
+		
 	// make a standar deviation image from processed movie
 	string stdWaveName = nameOfWave($wx)+"_std"
 	if (waveExists($stdWaveName))
@@ -576,6 +644,7 @@ function pigRunKS(wave movie)
 	// make std image with ROIs on top
 	// overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
 end
+
 
 
 // 10.

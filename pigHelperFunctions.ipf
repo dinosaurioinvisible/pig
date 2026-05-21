@@ -7,6 +7,7 @@
 // to avoid compilation conflicts
 // and to allow for anyone to look for the original fx, just in case
 
+
 // split delta (from Pawel)
 function splitDeltaF(wave popwave, variable n_reps)
 
@@ -159,8 +160,9 @@ Function SliderProcx(sa) : SliderControl
 			if( sa.eventCode & 1 ) // value set
 				Variable curval = sa.curval	
 				SVAR wn=root:Packages:pig:wavenameingraph
-				variable/g high=curval
+				variable/g root:Packages:pig:imshow_high=curval
 				NVAR low=root:Packages:pig:imshow_low
+				NVAR high=root:Packages:pig:imshow_high
 				ModifyImage $wn ctab= {low,high,Grays,0}
 			endif
 			break

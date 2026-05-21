@@ -9,8 +9,9 @@ Function pigROIbuddy(w)
 	string basename = nameOfWave(w)[0,strSearch(nameOfWave(w),"_reg_",0)-1]
 	string/g root:packages:pig:ROIbuddy_basename = basename
 	
-	// took this idea from Marios' ROIbuddy
-	string stimulus = "root:" + basename + ":" + basename + "_sti"
+	// from Marios' ROIbuddy:
+	string fdir = getWavesDataFolder(w,1)
+	string stimulus = fdir + basename + "_stim"
 	wave ws = $stimulus
 	
 	// these files are different for KS
@@ -41,9 +42,9 @@ Function pigROIbuddy(w)
 	//,eval={0,-1,-1,-1},eval={255,-1,-1,-1}
 	ModifyGraph mirror(left)=0,mirror(top)=0
 	ModifyGraph standoff(top)=0
-	ModifyGraph lblPos(left)=53,lblPos(Time)=47
+	// ModifyGraph lblPos(left)=53,lblPos(Time)=47
 	ModifyGraph freePos(DF)=0
-	ModifyGraph freePos(Time)=0
+	// ModifyGraph freePos(Time)=0
 	ModifyGraph axisEnab(left)={0.55,1}
 	ModifyGraph axisEnab(DF)={0,0.45}
 	
