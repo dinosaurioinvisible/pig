@@ -13,7 +13,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:ROIsize=2
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
-	variable/g root:Packages:pig:mkVideos=1
+	variable/g root:Packages:pig:mkVideos=0
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -497,7 +497,6 @@ function button_show(ba) : ButtonControl
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			// function: show 
 			pigImshow()
 			
 			break

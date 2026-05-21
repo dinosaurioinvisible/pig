@@ -9,9 +9,9 @@
 // for stand-alone use, and to avoid compilation confusions/issues
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
-#include "pigROIbuddy"
-#include "Ch2LineRes"
 #include "pigZapBadROIs"
+#include "pigROIbuddy"
+#include "pigCh2LineRes"
 #include "pigWM4DImageSlider"
 
 
@@ -286,6 +286,8 @@ function pigLoadMovie()
 		note $movieName, "msPerLine="+num2str(msPerLine)
 		note $movieName, "frameRate="+num2str(frameRate)
 		note $movieName, "dt="+num2str(dt)
+		variable duration = dimSize($movieName,2)/2/frameRate
+		note $movieName, "duration="+num2str(duration)
 		note $movieName, ""
 		// append all info (in case it's needed)
 		note $movieName, metadata

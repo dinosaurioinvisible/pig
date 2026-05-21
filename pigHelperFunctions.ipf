@@ -7,6 +7,15 @@
 // to avoid compilation conflicts
 // and to allow for anyone to look for the original fx, just in case
 
+// useful fxs to remember:
+// getWavesDataFolder
+// nameOfWave
+// getDataFolder
+// winName
+// parseFilePath
+// stringByKey
+// numberByKey
+// itemsInList
 
 // split delta (from Pawel)
 function splitDeltaF(wave popwave, variable n_reps)
@@ -245,4 +254,5 @@ function overlay_circles(wave image, wave synapses_data, [variable r])
         DrawText/W=$windowName xpos, ypos, num2str(i)
    endfor	
 end
+
 
