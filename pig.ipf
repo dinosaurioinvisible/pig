@@ -239,7 +239,6 @@ function pigLoadMovie()
 		msPerLine = NumberByKey("msPerLine", info, "=", "\r")
 		frameRate = NumberByKey("frameRate", info, "=", "\r")
 		variable dt = 1/frameRate
-		note $movieName, ""
 		// generally whatever the info available is, is not so relevant
 		// but i'm appending it anyway
 		note $movieName, metadata
@@ -286,8 +285,8 @@ function pigLoadMovie()
 		note $movieName, "msPerLine="+num2str(msPerLine)
 		note $movieName, "frameRate="+num2str(frameRate)
 		note $movieName, "dt="+num2str(dt)
-		variable duration = dimSize($movieName,2)/2/frameRate
-		note $movieName, "duration="+num2str(duration)
+		variable dur = dimSize($movieName,2)/2/frameRate
+		note $movieName, "duration="+num2str(dur)
 		note $movieName, ""
 		// append all info (in case it's needed)
 		note $movieName, metadata

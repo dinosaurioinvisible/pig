@@ -101,6 +101,12 @@ function appendMetadata(wave movie)
 		angleSlow = 1
 	endif
  	note movie, "scanAngleMultiplierSlow=" + num2str(angleSlow)
+ 	// calculate fovx and fovy (zoomed)
+	nvar fov = root:Packages:pig:FOV
+	variable fovx = fov * angleFast / zoomFactor
+	variable fovy = fov * angleSlow / zoomFactor
+	note movie, "fovZoom_x=" + num2str(fovx) 
+	note movie, "fovZoom_y=" + num2str(fovy)	
  	// msPerLine
  	variable linePeriod = numberByKey("Software.SI.hRoiManager.linePeriod", allMetadata, "=", "\r")
 	variable msPerLine = linePeriod * 1000
@@ -117,12 +123,9 @@ function appendMetadata(wave movie)
 	if (strlen(StringByKey("dt", info, "=", "\r")) == 0)
    	note movie, "dt=" + num2str(dt)
 	endif
-	// calculate fovx and fovy (zoomed)
-	nvar fov = root:Packages:pig:FOV
-	variable fovx = fov * angleFast / zoomFactor
-	variable fovy = fov * angleSlow / zoomFactor
-	note movie, "fovZoom_x=" + num2str(fovx) 
-	note movie, "fovZoom_y=" + num2str(fovy)	
+	// time info
+	variable duration = dimSize(movie,2)/2/frameRate
+	note movie, "duration="+num2str(duration)
 	note movie, ""
 
 end
