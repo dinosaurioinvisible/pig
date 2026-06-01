@@ -352,7 +352,6 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map)
 
 
-    # TODO: is not actually using the distance
     # KS between ROIs (baseline vs activity)
     # Benjamini-Hochberg FDR
     def ks_distance(self):
@@ -395,7 +394,7 @@ class KS_pipeline:
         # keep rows whose p-value is under BH cutoff
         self.ks_peaks = self.ks_peaks[pvals <= p_cutoff]
         # sort by ΔF/F and keep coords only (row, col, df/f, ks-d, ks-p)
-        self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=True))
+        self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[4], reverse=False))
         self.synapses = self.ks_peaks[:,:2].astype(int)
         # masked 2d arrays for synapses
         self.synapses_mask_pixels = np.full(self.movie.shape[1:], 1, dtype=np.int16)
@@ -589,7 +588,19 @@ class KS_pipeline:
     # fot other movies (reg, bc, etc)
     def overlay_plus_stimulus(self, movie):
         import matplotlib as mpl
-        mpl.rcParams['animation.ffmpeg_path'] = '/opt/homebrew/bin/ffmpeg'
+        if os.path.exists('/opt/homebrew/bin/ffmpeg'):
+            mpl.rcParams['animation.ffmpeg_path'] = '/opt/homebrew/bin/ffmpeg'
+        elif os.path.exists('/opt/miniconda3/bin/ffmpeg'):
+            mpl.rcParams['animation.ffmpeg_path'] = '/opt/miniconda3/bin/ffmpeg'
+        elif os.path.exists('/opt/anaconda3/bin/ffmpeg'):
+            mpl.rcParams['animation.ffmpeg_path'] = '/opt/anaconda3/bin/ffmpeg'
+        else:
+            try:
+                path_to_ffmpeg = '/opt/{}/bin/ffmpeg'.format(os.listdir('/opt')[0])
+                mpl.rcParams['animation.ffmpeg_path'] = path_to_ffmpeg
+            except:
+                print("\nffmpeg not found, skipping .mp4 movie creation")
+                return
         
         fig, (ax_mov, ax_stim) = plt.subplots(2, 1, height_ratios=[4, 1])
         im = ax_mov.imshow(movie[0])
