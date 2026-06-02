@@ -87,7 +87,8 @@ def get_scanImage_metadata(path_to_movie,igor=False):
 
 # this, or any other testing movie has to be commented out
 # otherwise Igor function won't work
-# movie = "/Users/f/Desktop/eemovie/F2C1_Dir12_5Hz_00001.tif"
+# movie = "/Users/f/Desktop/demoMovies/F1C3_Dir12_5Hz_00001.tif"
+# movie = "C:\\Users\\Fernando\\Desktop\\demoMovies\\F1C3_Dir12_1Hz_00002.tif"
 # movie = "//Users/f/desktop/iGluSnFR-4s tests/050526/AF10_HUC/glusnfr4_CR_20Hz004.tif"
 # get_scanImage_metadata(movie)
 

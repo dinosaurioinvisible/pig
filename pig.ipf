@@ -66,10 +66,19 @@ function runPythonScriptOnMovieWindows(string path_to_python, string path_to_pyt
 	// you may want to comment out these 2 lines
 	print "\nwindows cmd command:"
 	print igorcmd
-	ExecuteScriptText/b/z "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
-	// s_value actually returns eventual errors in execution, so better not to comment this out
+	executeScriptText/b/z "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
+	// s_value actually returns eventual errors in execution, so is better not to comment this out
 	print "s_value:"
    print s_value
+   
+	// string igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
+	// ExecuteScriptText/b/z igorcmd
+	// ExecuteScriptText/b/z "\"\'"+path_to_python+"\' \'"+path_to_python_script+"\' \'"+path_to_movie+"\'\""
+	// string cmd
+	// sprintf cmd, "\"%s\" \"%s\" \"%s\"", path_to_python, path_to_python_script, path_to_movie
+	// print cmd 
+	// ExecuteScriptText/B/Z cmd
+	
 end
 
 
@@ -161,7 +170,7 @@ end
 
 
 
-// 7.
+// 7.                                      
 // load movie
 function pigLoadMovie()
 	
