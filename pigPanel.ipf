@@ -6,11 +6,12 @@
 // panel for pig
 Window pigPanel(): Panel_pig
 	PauseUpdate; Silent 1	
-	// for manually defining FOV & alpha
+	// for manually defining global variables
+	// changed ROIsize to approxROIsize to avoid conflict with Kasia's macros
 	NewDataFolder/O root:Packages:pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
-	variable/g root:Packages:pig:ROIsize=2
+	variable/g root:Packages:pig:approxROIsize=2
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
 	variable/g root:Packages:pig:mkVideos=0
@@ -40,10 +41,10 @@ Window pigPanel(): Panel_pig
 	SetVariable alpha,fColor=(65535,65535,65535)
 	SetVariable alpha,limits={0,inf,0},value = root:Packages:pig:alpha
 	// ks: box for ROIsize
-	SetVariable ROIsize, pos={195,45}, size={80,30}, proc=button_setROIsize, title="ROIsize"
-	SetVariable ROIsize,help={"approx. diameter of ROIs, in µm"},fSize=12,fStyle=1
-	SetVariable ROIsize,fColor=(65535,65535,65535)
-	SetVariable ROIsize,limits={0,inf,0},value = root:Packages:pig:ROIsize
+	SetVariable approxROIsize, pos={195,45}, size={80,30}, proc=button_setROIsize, title="ROIsize"
+	SetVariable approxROIsize,help={"approx. diameter of ROIs, in µm"},fSize=12,fStyle=1
+	SetVariable approxROIsize,fColor=(65535,65535,65535)
+	SetVariable approxROIsize,limits={0,inf,0},value = root:Packages:pig:approxROIsize
 	// ks: box for minDist
 	SetVariable minDist, pos={280,45}, size={80,30}, proc=button_setMinDist, title="minDist"
 	SetVariable minDist,help={"min dist between ROIs centres, in pixels"},fSize=12,fStyle=1
@@ -259,7 +260,7 @@ function button_setROIsize(sva) : SetVariableControl
 			Variable dval = sva.dval
 			String sval = sva.sval
 			
-			variable/g root:packages:pig:ROIsize=dval
+			variable/g root:packages:pig:approxROIsize=dval
 			
 			break
 		case -1: // control being killed

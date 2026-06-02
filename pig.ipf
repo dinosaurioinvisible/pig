@@ -510,12 +510,12 @@ function pigRunKS(wave movie)
 	// optional parameters
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
-	nvar ROIsize = root:Packages:pig:ROIsize
+	nvar approxROIsize = root:Packages:pig:approxROIsize
 	nvar minDist = root:Packages:pig:minDist
 	svar ccMovies = root:Packages:pig:ccMovies
 	nvar mkVideos = root:Packages:pig:mkVideos
 	// if ks files in folder, mk new (avoid confusion)
-	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(ROIsize) + "_d" + num2str(minDist)
+	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(approxROIsize) + "_d" + num2str(minDist)
 	// to avoid naming problems for folder (bad character)
 	newFolderName = ReplaceString(".", newFolderName, "")
 	if (dataFolderExists("root:" + newFolderName))
@@ -539,16 +539,16 @@ function pigRunKS(wave movie)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
    	string ks_args
-		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
-			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		endif
 		// if concatenated, skip deinterleave 
 		if (ccx > -1)
-			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 			if (mkVideos == 1)
-				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(ROIsize), num2str(minDist)
+				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 			endif
    	endif
    	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
