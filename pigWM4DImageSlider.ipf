@@ -1,4 +1,5 @@
 #pragma rtGlobals=2		// Need new syntax
+#pragma once
 #include <Image Common>
 #include <Image Threshold Panel>
 #include <ImageSlider>
@@ -11,6 +12,7 @@
 // Changed the ValDisplay to SetVariable so that the control up and down arrows can be used to precisely move by one frame.
 
 //*******************************************************************************************************
+
 Function WM4DImageSliderProc(name, value, event)
 	String name			// name of this slider control
 	Variable value		// value of slider

@@ -62,23 +62,14 @@ end
 // 3.
 // runs a python script into a movie using windows cmd
 function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie)
-	string igorcmd = path_to_python+" "+path_to_python_script+" "+path_to_movie
+	string igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
 	// you may want to comment out these 2 lines
 	print "\nwindows cmd command:"
 	print igorcmd
-	executeScriptText/b/z "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
+	executeScriptText/b/z igorcmd
 	// s_value actually returns eventual errors in execution, so is better not to comment this out
 	print "s_value:"
    print s_value
-   
-	// string igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
-	// ExecuteScriptText/b/z igorcmd
-	// ExecuteScriptText/b/z "\"\'"+path_to_python+"\' \'"+path_to_python_script+"\' \'"+path_to_movie+"\'\""
-	// string cmd
-	// sprintf cmd, "\"%s\" \"%s\" \"%s\"", path_to_python, path_to_python_script, path_to_movie
-	// print cmd 
-	// ExecuteScriptText/B/Z cmd
-	
 end
 
 
@@ -709,12 +700,14 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 		abort
 	endif
 	// load
+	//kkk
 	LoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder
 	// remove
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+pathToTempFolder
+		print s_value
 	else
 		// string cmd
 		// sprintf cmd, "do shell script \"rm -rf %s\"", pathToTempFolder

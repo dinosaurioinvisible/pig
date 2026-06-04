@@ -44,7 +44,7 @@ function pigGetMetadata(wave movie)
 	svar pigPathToPythonInterpreter = root:Packages:pig:pigPathToPythonInterpreter
 	svar pigPathToGetMetadata = root:Packages:pig:pigPathToGetMetadata
 	// run script on movie - this produces the txt with the metadata
-	if (CmpStr(platform, "Windows") == 0)
+	if (CmpStr(platform, "Windows") == 0)		
 		runPythonScriptOnMovieWindows(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath)
 	else
 		runPythonScriptOnMovieMacOs(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath)
@@ -53,7 +53,6 @@ function pigGetMetadata(wave movie)
 	pigLoadAndRemoveTempFolder(dirPath)
 	
 end
-
 
 // look into metadata and append info to notes
 function appendMetadata(wave movie)

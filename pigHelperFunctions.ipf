@@ -1,5 +1,6 @@
 ﻿#pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
+#pragma once 			// to avoid compilation errors from name used twice
 
 // this file contains helper/auxiliary functions for pig
 // to avoid making pig.ipf too confusing, i'm just using an x
