@@ -24,7 +24,7 @@ class KS_pipeline:
         alpha = 0.05,                   # threshold for p-value significance
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
-        concat = False,            # needed for concatenated movies
+        concat = [],                    # needed for concatenated movies
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
@@ -73,7 +73,6 @@ class KS_pipeline:
             self.compute_dff_traces()
             self.plot_synapses()
             self.overlay_synapses()
-
 
 
     # TODO: use np.arange or linspace?
@@ -728,7 +727,7 @@ if __name__ == "__main__":
         min_distance=min_distance,
         synapse_size=synapse_size,
         igor=igor,
-        deinterleave=deinterleave,
+        concat=concat,
         mk_videos=mk_videos,
         )
 
