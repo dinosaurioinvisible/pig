@@ -28,11 +28,18 @@ Function/S LoadFiles([string dirpath])
 	if (paramIsDefault(dirpath) == 0)
 		Print "\nauto loading from: "+dirpath
 		// dirpath has to end with ": or / or \\"
-		if (cmpstr(dirpath[0],dirpath[strlen(dirpath)-1]) != 0)
-			if (cmpStr(platform, "Windows") != 0)
-				dirpath += dirpath[0]
-			else
+		if (cmpStr(platform, "Windows") == 0)
+			// in windows it isn't always the case
+			// this leads to errors if not cheked
+			if (cmpstr(dirpath[strlen(dirpath)-1],"\\") != 0)
 				dirpath += "\\"
+				print "dir path: "+dirpath
+			endif
+		else
+			// this seems to be enough for macos
+			if (cmpstr(dirpath[0],dirpath[strlen(dirpath)-1]) != 0)
+				dirpath += dirpath[0]
+				print "dir path: "+dirpath
 			endif
 		endif
 		sep = ";"

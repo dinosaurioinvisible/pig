@@ -368,7 +368,7 @@ function pigMultiLoad()
 	string fdir, fname, fpath, movieName
 	for(ifile=0; ifile < nfiles; ifile+=1)
 		string path = stringFromList(ifile, outputPaths, sep)
-		printf "%d: %s\r", ifile, path	
+		printf "%d: %s\r", ifile, path
 		fdir = path[0,strsearch(path,":",inf,1)]
 		fname = path[strsearch(path,":",inf,1)+1,strlen(path)-1]
 		movieName = fname[0,strsearch(fname,".tif",0)-1]
@@ -425,17 +425,27 @@ function pigMultiLoad()
 		endif
 		splitChannelsx($movieName, nChannels=nChannels)
 		// erase non deinterleaved movie
-		killwaves/z $movieName
+		// killwaves/z $movieName
+		// rename for concat
+		string movieName0 = movieName + "_mov"
+		rename $movieName, $movieName0
 	endfor
 	
-	// concatenate waves
-	string ch1WavesInFolder = WaveList("*_Ch1", ";", "")	
-	concatenate/o/np=2 ch1WavesInFolder, $basename
+	// concatenate main movie
+	string movWavesInFolder = WaveList("*_mov", ";", "")
+	string movName = basename + "_movs"
+	concatenate/o/np=2 movWavesInFolder, $movName
+	// concatenate waves ch1 & ch2 movies
+	string ch1WavesInFolder = WaveList("*_Ch1", ";", "")
+	string respName = basename + "_ch1cc"
+	concatenate/o/np=2 ch1WavesInFolder, $respName
 	string ch2WavesInFolder = WaveList("*_Ch2", ";", "")	
 	string stimName = basename + "_ch2cc"
 	concatenate/o/np=2 ch2WavesInFolder, $stimName
-	// remove ch1 & ch2 movies
+	// remove mov, ch1 & ch2 movies
 	for(ifile=0; ifile < nfiles; ifile+=1)
+		string movMovie = stringFromList(ifile, movWavesInFolder, ";")
+		killwaves/z $movMovie
 		string ch1movie = stringFromList(ifile, ch1WavesInFolder, ";")
 		killwaves/z $ch1movie
 		string ch2movie = stringFromList(ifile, ch2WavesInFolder, ";")
@@ -446,19 +456,36 @@ function pigMultiLoad()
 	// not the same, but basically from apply header info (in LoadScanImage)
 	variable x_res,y_res
 	variable timePerLine = msPerLine/1000
-	x_res = fov / zoomFactor * angleFast / dimsize($basename,0)
-	y_res = fov / zoomFactor * angleSlow / dimsize($basename,1)
+	x_res = fov / zoomFactor * angleFast / dimsize($movName,0)
+	y_res = fov / zoomFactor * angleSlow / dimsize($movName,1)
 	// setscale dim, num1, num2 (x: rows, y: cols)
 	// /p is for changing the delta value according to num2
-	setscale /p x, 0, x_res,"µm",$basename
-	setscale /p y, 0, y_res,"µm",$basename
+	setscale /p x, 0, x_res,"µm",$movName
+	setscale /p y, 0, y_res,"µm",$movName
 	variable z_res
-	z_res = timePerLine *  dimsize($basename,1)
-	setscale /P z, 0, z_res,"s",$basename
+	dt = timePerLine *  dimsize($movName,1)
+	setscale /P z, 0, dt,"s",$movName
+	// copy scales to ch1 & ch2
+	copyscales $movName, $respName
+	setscale/p z, 0,  dt, "s", $respName
+	copyscales $movName, $stimName
+	setscale/p z, 0,  dt, "s", $stimName
 	
 	// add movie to the list of concatenated
 	svar ccMovies = root:Packages:pig:ccMovies
-	ccMovies += basename+";"
+	if (WhichListItem(basename, ccMovies) < 0)
+		ccMovies += basename + ";"
+		ccMovies += basename + "=" + "["
+		for(ifile=0; ifile < nfiles; ifile+=1)
+			string cxPath = stringFromList(ifile, outputPaths, sep)
+			ccMovies += cxPath
+			if (ifile < nfiles-1)
+				ccMovies += ";"
+			endif
+		endfor
+		ccMovies += "];"
+	endif
+	
 	// make stimulus file
 	waveCh2lineRes($stimName)
 	string ch2stim = basename+"_ch2stim"
@@ -475,7 +502,7 @@ function pigMultiLoad()
 	// export to txt
 	// this is needed, because concat movie is just ch1
 	// so ks in python has to read the stimulus from the txt
-	newPath/o/q symbfdir, fdir
+	// newPath/o/q symbfdir, fdir
 	// save /g=general text, /m=termination
 	
 	// TODO kkk
@@ -484,6 +511,9 @@ function pigMultiLoad()
 	// save/g/m="\n"/DLIM=","/o/p=symbfdir ch2stimWave as "stimulus.txt"
 	
 	// change name back to ch2 (remove the 'cc' from concat ch2s)
+	rename $movName, $basename
+	string respName0 = basename + "_ch1"
+	rename $respName, $respName0
 	string stimName0 = basename + "_ch2"
 	rename $stimName, $stimName0
 end
@@ -529,6 +559,7 @@ function pigRunKS(wave movie)
 	setDataFolder $("root:" + newFolderName)
 	// check if concatenated or not (cc do not need deinterleaving)
 	string bn = stringByKey("basename",note(movie),"=","\r")
+	// this is to see check for concatenated movies
 	// whichListItem return the index, if found
 	variable ccx = whichListItem(bn, ccMovies)
 	
@@ -538,21 +569,21 @@ function pigRunKS(wave movie)
 		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
-   	string ks_args
+	   	string ks_args
 		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
 			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		endif
-		// if concatenated, skip deinterleave 
+		// check if concatenated
 		if (ccx > -1)
-			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 			if (mkVideos == 1)
-				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--skip-deint\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 			endif
-   	endif
-   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
-   	dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
+	   endif
+	   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
+   		dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
 	
 	// location in data browser
@@ -700,10 +731,9 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 		abort
 	endif
 	// load
-	//kkk
 	LoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder
-	// remove
+	// removeS
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+pathToTempFolder

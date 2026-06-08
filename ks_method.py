@@ -24,7 +24,7 @@ class KS_pipeline:
         alpha = 0.05,                   # threshold for p-value significance
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
-        deinterleave = True,            # not needed for concatenated movies
+        concat = False,            # needed for concatenated movies
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
@@ -41,8 +41,7 @@ class KS_pipeline:
             self.alpha = alpha
             self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
-            self.deinterleave = deinterleave
-            # pending
+            self.concat = concat
             self.mk_videos = mk_videos
             # not changeable from igor
             self.threshold_percentile = percentile
@@ -90,16 +89,14 @@ class KS_pipeline:
             print(f'loaded movie from: {self.fpath}')
         # in case movie is already deinterleaved
         self.movie = raw_movie
-        # metadata (only for scanImage)
+        # metadata (assuming scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
-            if self.deinterleave:
-                self.movie = raw_movie[:,0,:,:]
+            self.movie = raw_movie[:,0,:,:]
         else:
             self.get_metadata(x, datatype='ImageDescription')
-            if self.deinterleave:
-                self.movie = raw_movie[0::2]
+            self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
@@ -718,8 +715,8 @@ if __name__ == "__main__":
             min_distance = float(arg.split('=')[1])
         if arg.startswith('--ROIsize='):
             synapse_size = float(arg.split('=')[1])
-        if arg.startswith('--skip-deint'):
-            deinterleave = False
+        if arg.startswith('--concat'):
+            concat = str(arg.split('=')[1])
         if arg == '--mk-videos':
             mk_videos = True
         # can be changed from terminal

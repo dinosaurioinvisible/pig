@@ -201,7 +201,8 @@ function button_multiLoad(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
-		
+			
+			print "\nLoading:"
 			pigMultiLoad()
 			
 			break
