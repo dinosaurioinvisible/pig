@@ -19,7 +19,7 @@ Function/S LoadFiles([string dirpath])
 	string platform = IgorInfo(2)
 
 	// quick check
-	print "dirpath= " + dirpath
+	print "dirpath: " + dirpath
 	if (strlen(dirpath)==0)
 		print("\nnull path in LoadFiles()\n")
 		abort

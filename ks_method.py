@@ -82,8 +82,9 @@ class KS_pipeline:
         x = tf.TiffFile(self.fpath)
         # check for concatenation
         if len(self.concat) > 0:
-            movies = [tf.imread(mp) for mp in self.concat[1:-1].split(',')]
-            raw_movie = np.concatenate([movies],axis=0)
+            movie_paths = ['C:'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
+            movies = [tf.imread(path) for path in movie_paths]
+            raw_movie = np.concatenate(movies,axis=0)
         else:
             raw_movie = x.asarray()
         if len(raw_movie.shape) < 3 or raw_movie.shape[0] < 10:
@@ -91,7 +92,10 @@ class KS_pipeline:
         # for output data
         if self.igor:
             self.mk_names()
-            print(f'loaded movie from: {self.fpath}')
+            if len(self.concat) > 0:
+                print(f'loaded movie from: {movie_paths}')
+            else:
+                print(f'loaded movie from: {self.fpath}')
         # metadata (assuming scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:

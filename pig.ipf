@@ -51,6 +51,7 @@ end
 
 
 // 2.
+// runs simple command in macos terminal
 function runCommandOnMacosShell(string command)
 	string igorcmdx
 	sprintf igorcmdx, "do shell script \"%s\"", command
@@ -61,8 +62,13 @@ end
 
 // 3.
 // runs a python script into a movie using windows cmd
-function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie)
-	string igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
+function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
+	string igorcmd
+	if (paramIsDefault(args) == 0)
+		igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\" "+args
+	else
+		igorcmd = "\""+path_to_python+"\" \""+path_to_python_script+"\" \""+path_to_movie+"\""
+	endif
 	// you may want to comment out these 2 lines
 	print "\nwindows cmd command:"
 	print igorcmd
@@ -480,7 +486,7 @@ function pigMultiLoad()
 			string cxPath = stringFromList(ifile, outputPaths, sep)
 			ccMovies += cxPath
 			if (ifile < nfiles-1)
-				ccMovies += ";"
+				ccMovies += ","
 			endif
 		endfor
 		ccMovies += "];"
@@ -498,18 +504,7 @@ function pigMultiLoad()
 	// ch2res values are too high (sum all matrix per frame)
 	wave ch2stimWave = $ch2stim
 	ch2stimWave = ch2stimWave / 1000000
-
-	// export to txt
-	// this is needed, because concat movie is just ch1
-	// so ks in python has to read the stimulus from the txt
-	// newPath/o/q symbfdir, fdir
-	// save /g=general text, /m=termination
-	
-	// TODO kkk
-	// currently working on this part
-	// ch2lineRes gives too many points
-	// save/g/m="\n"/DLIM=","/o/p=symbfdir ch2stimWave as "stimulus.txt"
-	
+		
 	// change name back to ch2 (remove the 'cc' from concat ch2s)
 	rename $movName, $basename
 	string respName0 = basename + "_ch1"
@@ -565,23 +560,41 @@ function pigRunKS(wave movie)
 	
 	// run KS
 	string dirpath
+	string ks_args
+	// check platform
 	if (CmpStr(platform, "Windows") == 0)
-		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie)
-		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
-	else
-	   	string ks_args
-		sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+		// arguments for base runnning command
+   		sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+   		// mk videos opt
+    	if (mkVideos == 1)
+       	ks_args += " --mk-videos"
+    	endif
+    	// if concatenated movies (multiload)
+    	if (ccx > -1)
+	    	string ccList = stringByKey(bn,ccMovies,"=",";")
+       	ks_args += " --concat=" + ccList
+    	endif
+    else
+    	// in mac is a bit more complicated
+    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
 			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		endif
 		// check if concatenated
 		if (ccx > -1)
-			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+			ccList = stringByKey(bn,ccMovies,"=",";")
+			sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
 			if (mkVideos == 1)
-				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
 			endif
-	   endif
+		endif
+    endif
+	// check platform
+	if (CmpStr(platform, "Windows") == 0)
+		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
+		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
+	else
 	   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
    		dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
