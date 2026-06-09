@@ -641,7 +641,8 @@ function pigRunKS(wave movie)
     	setscale/p z, 0,  dt, "s", $wx_isq
     	wx = wx + "_isq"
 	else
-   	print "\ncouldn't find aspect correction file\n"
+   		print "\ncouldn't find aspect correction file\n"
+   		print "most likely it wasn't created (and there's some problem during the python execution)"
 	endif
 	// bleach correction	
 	wx = wx + "_bc"
