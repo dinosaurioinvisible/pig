@@ -24,7 +24,8 @@ class KS_pipeline:
         alpha = 0.05,                   # threshold for p-value significance
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
-        concat = [],                    # needed for concatenated movies
+        concat = "",                    # needed for concatenated movies
+        load_stimulus = False,          # for stimulus/analysis wave in txt format
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
@@ -42,6 +43,7 @@ class KS_pipeline:
             self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
             self.concat = concat
+            self.load_stimulus = load_stimulus
             self.mk_videos = mk_videos
             # not changeable from igor
             self.threshold_percentile = percentile
@@ -74,20 +76,22 @@ class KS_pipeline:
             self.plot_synapses()
             self.overlay_synapses()
 
-
-    # TODO: use np.arange or linspace?
+    
     def load_movie(self):
         # assumes raw movie
         x = tf.TiffFile(self.fpath)
-        raw_movie = x.asarray()
+        # check for concatenation
+        if len(self.concat) > 0:
+            movies = [tf.imread(mp) for mp in self.concat[1:-1].split(',')]
+            raw_movie = np.concatenate([movies],axis=0)
+        else:
+            raw_movie = x.asarray()
         if len(raw_movie.shape) < 3 or raw_movie.shape[0] < 10:
             raise Exception("this doesn't seem to be a framescan")
         # for output data
         if self.igor:
             self.mk_names()
             print(f'loaded movie from: {self.fpath}')
-        # in case movie is already deinterleaved
-        self.movie = raw_movie
         # metadata (assuming scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
@@ -110,7 +114,7 @@ class KS_pipeline:
             os.mkdir(savedir)
 
 
-    # TODO: this should be done more systematically, for every metadata tag
+    # TODO: maybe call get_metadata.py
     def get_metadata(self, movie, datatype):
         self.metadata = {}
         if datatype == 'ImageDescription':
@@ -136,17 +140,20 @@ class KS_pipeline:
         self.dt = 1/self.frameRate
 
 
+    # TODO: analysis wave will be here
     # makes steps from linear arr with changing values
     def mk_stimulus(self, raw_movie, delta=0.05):
         # in some cases, ch2 will be empty
         # like in emily & elliot's movies
         # and the only way to know the stimulus will be to access some file
-        # this is assuming the name of the file is this
-        stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
-        if os.path.isfile(stimulus_txt):
-            with open(stimulus_txt, "r") as f:
-                stim_txt = f.read()
-            self.stimulus = np.array(stim_txt.split('\n')[1:-1], dtype=int)
+        # this also applies to any arbitrary segmentation to analyse the data
+        if self.load_stimulus:
+            # this is assuming the name of the file is this
+            stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
+            if os.path.isfile(stimulus_txt):
+                with open(stimulus_txt, "r") as f:
+                    stim_txt = f.read()
+                self.stimulus = np.array(stim_txt.split('\n')[1:-1], dtype=int)
         else:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
@@ -700,9 +707,10 @@ if __name__ == "__main__":
     alpha = 0.05
     min_distance = 3
     synapse_size = 2
-    igor = True                 # mostly for debugging
-    deinterleave = True         # has to be changed for concatenated movies
+    load_stimulus = False       # to load a txt file with the stimulus/analysis wave
+    concat = ""                 # has to be changed for concatenated movies
     mk_videos = False           # overlay and overlay + stimulus
+    igor = True                 # mostly for debugging
     # look for arguments
     for ei,arg in enumerate(sys.argv):
         # these can be changed from panel in Igor
@@ -716,6 +724,8 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
+        if arg == '--load-stimulus':
+            load_stimulus = True
         if arg == '--mk-videos':
             mk_videos = True
         # can be changed from terminal
@@ -726,9 +736,10 @@ if __name__ == "__main__":
         alpha=alpha,
         min_distance=min_distance,
         synapse_size=synapse_size,
-        igor=igor,
         concat=concat,
+        load_stimulus=load_stimulus,
         mk_videos=mk_videos,
+        igor=igor,
         )
 
 
