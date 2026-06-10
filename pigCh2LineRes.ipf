@@ -1,7 +1,7 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
 
-function waveCh2lineRes(w)
+function pigWaveCh2lineRes(w)
 	
 	wave w
 	

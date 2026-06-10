@@ -311,17 +311,40 @@ function button_runKS(ba) : ButtonControl
 	switch( ba.eventCode )
 		case 2: // mouse up
 			
+			// drop-down menu for movie
 			// this removes all the ks processed movies from the list
 			string list=wavelist("!*_reg*",";","DIMS:3")
 			string name
 			prompt name, "pick movie (in current data folder)", popup,list
-			doprompt "pick movie ", name
-				if(V_flag==1)
-					Abort
-				endif	
+			// drop-down menu for type of analysis
+			string types="default;use stimulus wave;use analysis wave"
+			string type
+			prompt type, "pick analysis file (default = baseline/responses)", popup,types
+			// call/make pop-up window
+			doprompt "pick movie ", name, type
+			if(V_flag==1)
+				Abort
+			endif	
 			wave picwave=$name
 			
-			pigRunKS(picwave)	
+			if (cmpstr(type,"use stimulus wave") == 0)
+				if (waveExists($"!*stimulus*"))
+					print("stimulus ok")
+				else
+					print "\ncannot find stimulus file in folder"
+					Abort
+				endif
+			elseif (cmpstr(type, "use analysis wave") == 0)
+				if (waveExists($"!*analysis*"))
+					print("analysis ok")
+				else
+					print "\ncannot find analysis file in folder"
+					Abort
+				endif
+			endif
+			
+			// pigRunKS(picwave)
+			print "run ks"
 			
 			break
 		case -1: // control being killed

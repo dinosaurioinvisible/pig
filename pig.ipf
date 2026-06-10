@@ -321,7 +321,7 @@ function pigLoadMovie()
 	endFor
 	
 	// mk stimulus wave
-	waveCh2lineRes($movieName)
+	pigWaveCh2lineRes($movieName)
 	string cwd = getDataFolder(1)
 	string stimulusWaveDefault = cwd+"timewave"
 	string stimulusWaveCh2res = movieName+"_ch2stim"
@@ -493,7 +493,7 @@ function pigMultiLoad()
 	endif
 	
 	// make stimulus file
-	waveCh2lineRes($stimName)
+	pigWaveCh2lineRes($stimName)
 	string ch2stim = basename+"_ch2stim"
 	if (waveExists($ch2stim))
 		killwaves/z $ch2stim
