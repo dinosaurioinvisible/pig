@@ -25,10 +25,10 @@ class KS_pipeline:
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
         concat = "",                    # needed for concatenated movies
-        analysisWave=False,             # to replace default comparator from mk stimulus
+        analysisWave = False,           # to replace default comparator from mk stimulus
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
-        percentile = 70,                # for peaks
+        percentile = 70,                # for peaks (candidates)
         sigma_smooth = 0,               # for gaussian filter in ΔF map
         sigma_fit = 1,                  # for 2d gaussian fit
         lambda_reg = 0.05,              # regul. strength in ridge regression
@@ -60,7 +60,7 @@ class KS_pipeline:
         self.load_movie()
         self.register()
         self.interpolate_square()
-        self.bleach_correction()
+        self.correction()
         # setup search
         self.define_roi_size()
         self.stim_transitions()
@@ -84,6 +84,7 @@ class KS_pipeline:
         if len(self.concat) > 0:
             movie_paths = ['C:'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
             movies = [tf.imread(path) for path in movie_paths]
+            self.cc_nframes = [len(movie) for movie in movies]
             raw_movie = np.concatenate(movies,axis=0)
         else:
             raw_movie = x.asarray()
@@ -281,9 +282,58 @@ class KS_pipeline:
             self.savepath += '_isq'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
-
+    
+    # if a concatenated movie: 
+    # linear/bleach correction is done for each part independently
+    # then a normalization of the baseline ∆f/f level
+    # otherwise, just do bleach correction
+    def correction(self):
+        if len(self.concat) == 0:
+            self.bleach_correction()
+            return
+        # if concat:
+        # this may seem strange/confusing
+        # is just to avoid changing the code later
+        movie = self.movie.copy()
+        start, end = 0, 0
+        for nframes in self.cc_nframes:
+            end += nframes
+            # copy individual part and correct
+            self.movie = movie[start:end]
+            self.bleach_correction(concat=True)
+            # copy back, after correction
+            movie[start:end] = self.movie
+            # new start (same as start = end)
+            start += nframes
+        # change back
+        self,movie = movie.copy()
+        
+        # now ∆f/f normalization for all
+        # from Kasia's code
+        n_movies = len(self.cc_indexes)
+        # first pass: get means & overall mean
+        movies_means = np.zeros(n_movies)
+        start, end = 0, 0
+        for mi,nframes in enumerate(self.cc_nframes):
+            end += nframes
+            movies_means[mi] = self.movie[start:end].mean()
+            start += nframes
+        mean_mean = movies_means.mean()
+        # second pass: normalize
+        start, end = 0, 0
+        for mi,nframes in enumerate(self.cc_nframes):
+            end += nframes
+            # scale: mean in relation to overall mean
+            scale = movies_means[mi]/mean_mean
+            self.movie[start:end] /= scale
+            start += nframes
+        # save
+        if self.igor:
+            self.savepath += '_bc'
+            tf.imwrite(f'{self.savepath}.tif', self.movie)
+    
     # correct for the bleaching of glutamate
-    def bleach_correction(self,rescale=True):
+    def bleach_correction(self,rescale=True,concat=False):
         # reference
         frame_mean = self.movie.mean(axis=(1,2))
         def exp_decay(t,A,tau,C):
@@ -303,8 +353,9 @@ class KS_pipeline:
             # same but rescaled (otherwise you risk normalizing)
             self.movie = self.movie * (fit_curve[0] / np.maximum(fit_curve[:,None,None],1e-8))
         if self.igor:
-            self.savepath += '_bc'
-            tf.imwrite(f'{self.savepath}.tif', self.movie)
+            if not concat:
+                self.savepath += '_bc'
+                tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
     # TODO: incorporate synapse size from Igor?
