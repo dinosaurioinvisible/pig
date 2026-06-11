@@ -25,10 +25,11 @@
 // 6. pigDefinePathToKS
 // 7. pigLoadMovie
 // 8. pigMultiLoad
-// 9. pigRunKS 
-// 10. pigSelectPythonScript
-// 11. pigLoadAndRemoveTempFolder
-// 12. pigRunPythonScriptOnMovie 
+// 9. pigLoadAnalysisWave
+// 10. pigRunKS 
+// 11. pigSelectPythonScript
+// 12. pigLoadAndRemoveTempFolder
+// 13. pigRunPythonScriptOnMovie 
 
 
 // 0.
@@ -514,8 +515,59 @@ function pigMultiLoad()
 end
 
 
-
 // 9.
+// Load experiment wave - for stimulus/analysis wave
+// string expWaves = pigLoadFiles(filters=".ibw;.txt",returnOnly=1,mkFolder="analysisWaves")
+function pigLoadAnalysisWave()
+
+	string cwd = getDataFolder(1)
+	// pop-up window
+	string message = "choose analysis/stimulus wave"
+	string fileFilters = "Data files (*.ibw,*.txt):.ibw,.txt;"
+	open/d/r/f=fileFilters/m=message refNum
+	string path = S_fileName
+	// cancel
+	if (strlen(path) == 0)
+		abort
+	endif
+	// get filenames for igor data browser
+	string fname
+	string platform = IgorInfo(2)
+	if (CmpStr(platform, "Windows") == 0)
+		fname = ParseFilePath(3, path, "\\", 0, 0)
+	else
+		fname = ParseFilePath(3, path, ":", 0, 0)
+	endif
+	// create folder, move and load waves there
+	newDataFolder/o/s root:$"analysisWaves"
+	// load
+	if (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt") == 0)
+		loadWave/q/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/o/n=$fname path
+		// remove 0 at the end of fname
+		wave w = $(fname+"0")
+		if (waveExists($fname))
+			killWaves $fname
+		endif
+		rename w, $fname
+	elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".ibw")  == 0)	
+		loadWave/q/o/n=$fname path
+	endif
+	note $fname, "fpath="+path
+	// now come back to original location/folder
+	setDataFolder cwd
+	// try to change scale, according to base movie
+	string list = wavelist("!*_ch*",";","DIMS:3")
+	if (strlen(list) > 0)
+		string baseMovie = stringFromList(0, list)
+		variable dt = numberByKey("dt",note($baseMovie),"=","\r")
+		string wx = "root:analysisWaves:" + fname
+		setscale/p x, 0,  dt, "s", $wx
+		redimension/n=(dimSize($wx, 0)) $wx
+	endif
+end
+
+
+// 10.
 // run ks analysis
 function pigRunKS(wave movie)
 	
@@ -538,6 +590,7 @@ function pigRunKS(wave movie)
 	nvar approxROIsize = root:Packages:pig:approxROIsize
 	nvar minDist = root:Packages:pig:minDist
 	svar ccMovies = root:Packages:pig:ccMovies
+	svar anWaves = root:Packages:pig:anWaves
 	nvar mkVideos = root:Packages:pig:mkVideos
 	// if ks files in folder, mk new (avoid confusion)
 	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(approxROIsize) + "_d" + num2str(minDist)
@@ -557,6 +610,7 @@ function pigRunKS(wave movie)
 	// this is to see check for concatenated movies
 	// whichListItem return the index, if found
 	variable ccx = whichListItem(bn, ccMovies)
+	variable anx = whichListItem(bn, anWaves)
 	
 	// run KS
 	string dirpath
@@ -565,7 +619,7 @@ function pigRunKS(wave movie)
 	if (CmpStr(platform, "Windows") == 0)
 		// arguments for base runnning command
    		sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
-   		// mk videos opt
+   	// mk videos opt
     	if (mkVideos == 1)
        	ks_args += " --mk-videos"
     	endif
@@ -574,8 +628,13 @@ function pigRunKS(wave movie)
 	    	string ccList = stringByKey(bn,ccMovies,"=",";")
        	ks_args += " --concat=" + ccList
     	endif
+    	// if analysis wave
+    	if (anx > -1)
+	    	string analysisWave = stringByKey(bn,ccMovies,"=",";")
+       	ks_args += " --anWave=" + analysisWave
+    	endif
     else
-    	// in mac is a bit more complicated
+    	// in mac is a bit more complicated (at least for me)
     	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
@@ -584,9 +643,20 @@ function pigRunKS(wave movie)
 		// check if concatenated
 		if (ccx > -1)
 			ccList = stringByKey(bn,ccMovies,"=",";")
-			sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
-			if (mkVideos == 1)
-				sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
+			if (anx > -1)
+				// concatenated + analysis wave
+				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList, analysisWave
+				// + videos
+				if (mkVideos == 1)
+					sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList, analysisWave
+				endif
+			else
+				// just concatenated
+				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
+				if (mkVideos == 1)
+					// + videos
+					sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
+				endif
 			endif
 		endif
     endif
@@ -604,7 +674,7 @@ function pigRunKS(wave movie)
 	
 	// load files into igor
 	string path_to_python_output = dirpath+"python_output"
-	LoadFiles(dirpath=path_to_python_output)
+	pigLoadFiles(dirpath=path_to_python_output)
 	print "temporal files at: "+path_to_python_output
 	// remove temporal files
 	if (CmpStr(platform, "Windows") == 0)
@@ -701,7 +771,7 @@ end
 
 
 
-// 10.
+// 11.
 // select python script
 function pigSelectPythonScript()
 	// d: dialog, r: read only
@@ -735,7 +805,7 @@ end
 
 
 
-// 11.
+// 12.
 // to load python outputs and then remove temporal folders
 function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 	// quick check
@@ -745,7 +815,7 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 		abort
 	endif
 	// load
-	LoadFiles(dirpath=pathToTempFolder)
+	pigLoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder
 	// removeS
 	string platform = IgorInfo(2)
@@ -763,15 +833,15 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 end
 
 
-// 12
+// 13
 // runs script on movie depending whether system is windows or macos
 function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, string pathToMovie])
 	// check platform
 	string platform = IgorInfo(2)
 	
-	// 12.1 lookup paths
+	// 13.1 lookup paths
 	
-	// 12.1.1 check whether python interpreter has been defined
+	// 13.1.1 check whether python interpreter has been defined
 	if (paramIsDefault(pathToPython) != 0)
 		// this functions looks up for, or creates a txt file with the path to python
 		// the path inside the txt file is made a global string = pigthonPythonPath
@@ -782,7 +852,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToPython = TrimString(pigPathToPython)
 	endif
 
-	// 12.1.2 check for path to script	
+	// 13.1.2 check for path to script	
 	svar/z pigPathToScript = root:pigPathToScript
 	// if script in args, make script as preferred
 	if (paramIsDefault(pathToScript) == 0)
@@ -795,9 +865,9 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToScript = pigPathToScript
 	endif
 	
-	// 12.1.3 check path to movie
+	// 13.1.3 check path to movie
 	svar/z pigPathToMovie = root:pigPathToMovie
-	// same as 12.1.2
+	// same as 13.1.2
 	if (paramIsDefault(pathToMovie) == 0)
 		string/g pigPathToMovie = pathToMovie
 	// if not, and there is preferred script, used that
@@ -809,7 +879,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 12.2. print & double check
+	// 13.2. print & double check
 	print "\npig:"
 	// path to interpreter
 	if (numtype(strlen(pathToPython)) == 2)
@@ -834,7 +904,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 
 
-	// 12.3. run python script from terminal
+	// 13.3. run python script from terminal
 	if (CmpStr(platform, "Windows") == 0)
 		RunPythonScriptOnMovieWindows(pathToPython, pathToScript, pathToMovie)
 	else
@@ -842,7 +912,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 12.4. load files from python output folder into igor
+	// 13.4. load files from python output folder into igor
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
@@ -850,11 +920,11 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
 	string path_to_python_output = dirpath+"python_output"
-	LoadFiles(dirpath=path_to_python_output)
+	pigLoadFiles(dirpath=path_to_python_output)
 	print "temporal files at: "+path_to_python_output
 	
 	
-	// 12.5. remove temporal folder
+	// 13.5. remove temporal folder
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
 	else

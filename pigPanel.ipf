@@ -15,7 +15,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
 	variable/g root:Packages:pig:mkVideos=0
-	string/g root:Packages:pig:aeWaves=""
+	string/g root:Packages:pig:anWaves=""
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -52,17 +52,17 @@ Window pigPanel(): Panel_pig
 	SetVariable minDist,fColor=(65535,65535,65535)
 	SetVariable minDist,limits={0,inf,0},value = root:Packages:pig:minDist
 	// ks: load movie
-	Button Load, pos={30,77}, size={80,20}, proc=button_loadMovie, title="Load movie"
+	Button Load, pos={25,77}, size={80,20}, proc=button_loadMovie, title="Load movie"
 	Button Load, fColor=(16191,18504,18761)
 	// ks: multiload movie
-	Button multiLoad, pos={120,77}, size={70,20}, proc=button_multiLoad, title="MultiLoad"
+	Button multiLoad, pos={110,77}, size={75,20}, proc=button_multiLoad, title="MultiLoad"
 	Button multiLoad, fColor=(16191,18504,18761)
-	// ks: expWave -- load experiment (stimulus/analysis) wave
-	Button LoadExpWave, pos={200,77}, size={70,20}, proc=button_LoadExpWave, title="expWave"
-	Button LoadExpWave, fColor=(16191,18504,18761)
+	// ks: Load analysis Wave -- load experiment (stimulus/analysis) wave
+	Button LoadAnalysisWave, pos={190,77}, size={90,20}, proc=button_LoadAnalysisWave, title="Load anWave"
+	Button LoadAnalysisWave, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={280,77}, size={85,20}, proc=button_runKS, title="Run KS"
-	Button runKS, fColor=(16191,18504,18761), fstyle=0
+	Button runKS, pos={290,77}, size={75,20}, proc=button_runKS, title="Run KS"
+	Button runKS, fColor=(16191,18504,18761), fstyle=1
 	// ks: save -- make overlay & overlay + input movies
 	// checkBox mkVideos, pos={320,80}, size={10,20}, proc=pigMakeVideos, title="Save"
 	checkBox mkVideos, pos={300,15}, size={10,20}, proc=pigMakeVideos, title="Save"
@@ -217,13 +217,13 @@ function button_multiLoad(ba) : ButtonControl
 	return 0
 end
 
-// pig: load experiment wave
-function button_LoadExpWave(ba) : ButtonControl
+// pig: load analysis wave
+function button_loadAnalysisWave(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 
-			pigLoadExpWave()
+			pigLoadAnalysisWave()
 			
 			break
 		case -1: // control being killed
@@ -334,28 +334,31 @@ function button_runKS(ba) : ButtonControl
 			string expName, expWave
 			string cwd = getDataFolder(1)
 			// this removes all the ks processed movies from the list
-			string list=wavelist("!*_reg*",";","DIMS:3")
-			prompt expName, "pick movie (in current data folder)", popup, list
-			// drop-down menu for type of analysis
-			setDataFolder root:expWaves
-			string expWaves = waveList("*", ";", "")
+			string moviesInFolder = wavelist("!*_reg*",";","DIMS:3")
+			prompt expName, "pick movie (in current data folder)", popup, moviesInFolder
+			// drop-down menu for type of analysis -- analysis wave
+			setDataFolder root:analysisWaves
+			string expWaves = "default;"+waveList("*", ";", "")
 			setDataFolder cwd
 			prompt expWave, "pick analysis file (default = baseline/responses)", popup, expWaves
-			// call/make pop-up window
+			// pop-up window
 			doprompt "pick movie ", expName, expWave
 			if(V_flag==1)
 				Abort
 			endif
-			wave picwave=$expName
-			// save expWaveName for later
-			svar aeWaves = root:Packages:pig:aeWaves
-			aeWaves += "
+			// movie
+			wave picwave = $expName
+			// analysis wave
+			// cmpstr: 0 = equal, 1 = not equal
+			if (cmpstr(expWave,"default") == 1)
+				// save analysis wave name for later
+				svar anWaves = root:Packages:pig:anWaves
+				if (whichListItem(expWave, anWaves) == -1)
+					anWaves = expName +";"+ expName +"="+ expWave +";"
+				endif
+			endif
 			
-			// pigRunKS(picwave)
-			print "run ks"
-			print name
-			print expWave
-			kkk
+			pigRunKS(picwave)
 			
 			break
 		case -1: // control being killed

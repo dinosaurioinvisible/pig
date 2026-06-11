@@ -10,20 +10,56 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-Function/S LoadFiles([string dirpath])
+Function/S pigLoadFiles([string dirpath, string filters, variable returnOnly, string mkFolder])
 	variable refNum
 	string message = "Select one or more files"
-	string outputPaths
-	string fileFilters = "All Files"
+	string outputPaths, fileFilters
 	string sep = "\r"
 	string platform = IgorInfo(2)
-
-	// quick check
-	print "dirpath: " + dirpath
-	if (strlen(dirpath)==0)
-		print("\nnull path in LoadFiles()\n")
-		abort
+	
+	// chekc optional arguments apart from dirpath
+	// check if return only (so no load here)
+	if (paramIsDefault(returnOnly) == 0)
+		returnOnly = 1
+	else
+		returnOnly = 0
 	endif
+	// check for mkFolder (to create a new folder and put things there)
+	if (paramIsDefault(mkFolder) == 0)
+		if (returnOnly == 0)
+			// this /o is not overwrite, but avoid error if folder exists
+			newDataFolder/o/s root:$mkFolder
+		endif
+	endif
+	// check if filters
+	if (paramIsDefault(filters) == 0)
+		// this is a bit convoluted, but is to include optional filters
+		// example: fileFilters = "Data files (*.ibw,*.dat):.ibw,.dat;"
+		variable i
+		variable nf = itemsInList(filters)
+		fileFilters = "Data files (*"
+		for (i=0; i<nf; i+=1)
+			fileFilters += stringFromList(i,filters)
+			if (i<nf-1)
+				fileFilters += ","
+			else
+				fileFilters += "):"
+			endif
+		endfor
+		for (i=0; i<nf; i+=1)
+			fileFilters += stringFromList(i,filters)
+			if (i<nf-1)
+				fileFilters += ","
+			else
+				fileFilters += ";"
+			endif
+		endfor
+		// just a checkpoint
+		// print "fileFilters: " + fileFilters
+	else
+		fileFilters = "All Files"
+	endif
+	
 	// look for path
 	if (paramIsDefault(dirpath) == 0)
 		Print "\nauto loading from: "+dirpath
@@ -58,9 +94,11 @@ Function/S LoadFiles([string dirpath])
 		Open /D /R /MULT=1 /F=fileFilters /M=message refNum
 		outputPaths = S_fileName
 	endif
-   
+   // cancel if empty
 	if (strlen(outputPaths) == 0)
-		Print "Cancelled"
+		Abort
+	elseif (returnOnly == 1)
+		return outputPaths
 	else
 		// for optional dirpath
 		variable numFilesSelected = ItemsInList(outputPaths, sep)
@@ -70,10 +108,10 @@ Function/S LoadFiles([string dirpath])
 			String path = dirpath+StringFromList(iFile, outputPaths, sep)
 			Printf "%d: %s\r", iFile, path
 			// for macos
-			if (CmpStr(platform, "Windows") != 0)
-				path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
+			// if (CmpStr(platform, "Windows") != 0)
+				// path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
 				// Printf "%d: %s\r", iFile, path
-			endif
+			// endif
 			// get filenames for igor data browser
 			if (CmpStr(platform, "Windows") == 0)
 				string fname = ParseFilePath(3, path, "\\", 0, 0)
@@ -107,16 +145,18 @@ Function/S LoadFiles([string dirpath])
 				wave w = $(fname+"0")
 				rename w, $fname
 			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt")  == 0)	
-				LoadWave/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/o/n=$fname path
+				LoadWave/q/J/M/U={0,0,1,0}/D/A/K=0/L={0,0,0,0,0}/o/n=$fname path
 				// remove 0 at the end of fname
 				wave w = $(fname+"0")
 				if (WaveExists($fname))
 		      	KillWaves $fname
 			   endif
 				rename w, $fname
+			elseif (cmpStr(path[strlen(path)-4,strlen(path)-1], ".ibw")  == 0)	
+         		LoadWave/q/o/n=$fname path
 			else
 				print fname
-				print "No recognized file type (tif, tiff, png, jpeg, csv, txt)"
+				print "No recognized file type (tif, tiff, png, jpeg, csv, txt, ibw)"
 				print path
 			endif 
 			
@@ -124,8 +164,8 @@ Function/S LoadFiles([string dirpath])
 		wave tempwave0     
 		killwaves tempwave0
 	endif
-   
-	return outputPaths      // Will be empty if user canceled
+
+	return outputPaths
 End
 
 
