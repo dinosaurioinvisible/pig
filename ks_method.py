@@ -25,7 +25,7 @@ class KS_pipeline:
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
         concat = "",                    # needed for concatenated movies
-        load_stimulus = False,          # for stimulus/analysis wave in txt format
+        analysisWave="",                # to replace default comparator from mk stimulus
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
@@ -43,7 +43,7 @@ class KS_pipeline:
             self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
             self.concat = concat
-            self.load_stimulus = load_stimulus
+            self.analysisWave = analysisWave
             self.mk_videos = mk_videos
             # not changeable from igor
             self.threshold_percentile = percentile
@@ -151,13 +151,14 @@ class KS_pipeline:
         # like in emily & elliot's movies
         # and the only way to know the stimulus will be to access some file
         # this also applies to any arbitrary segmentation to analyse the data
-        if self.load_stimulus:
+        if len(self.analysisWave) > 0:
             # this is assuming the name of the file is this
-            stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
-            if os.path.isfile(stimulus_txt):
-                with open(stimulus_txt, "r") as f:
-                    stim_txt = f.read()
-                self.stimulus = np.array(stim_txt.split('\n')[1:-1], dtype=int)
+            # stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
+            awave = os.path.join(self.fdir,self.analysisWave)
+            if os.path.isfile(awave):
+                with open(awave, "r") as f:
+                    awave_txt = f.read()
+                self.stimulus = np.array(awave_txt.split('\n')[1:-1], dtype=int)
         else:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
@@ -711,8 +712,8 @@ if __name__ == "__main__":
     alpha = 0.05
     min_distance = 3
     synapse_size = 2
-    load_stimulus = False       # to load a txt file with the stimulus/analysis wave
     concat = ""                 # has to be changed for concatenated movies
+    analysisWave = ""           # stimulus/analysis wave 
     mk_videos = False           # overlay and overlay + stimulus
     igor = True                 # mostly for debugging
     # look for arguments
@@ -728,8 +729,8 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
-        if arg == '--load-stimulus':
-            load_stimulus = True
+        if arg.startswith('--anWave'):
+            analysisWave = str(arg.split('=')[1])
         if arg == '--mk-videos':
             mk_videos = True
         # can be changed from terminal
@@ -741,7 +742,7 @@ if __name__ == "__main__":
         min_distance=min_distance,
         synapse_size=synapse_size,
         concat=concat,
-        load_stimulus=load_stimulus,
+        analysisWave=analysisWave,
         mk_videos=mk_videos,
         igor=igor,
         )

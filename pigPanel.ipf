@@ -15,6 +15,7 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
 	variable/g root:Packages:pig:mkVideos=0
+	string/g root:Packages:pig:aeWaves=""
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -51,18 +52,22 @@ Window pigPanel(): Panel_pig
 	SetVariable minDist,fColor=(65535,65535,65535)
 	SetVariable minDist,limits={0,inf,0},value = root:Packages:pig:minDist
 	// ks: load movie
-	Button Load, pos={30,77}, size={85,20}, proc=button_loadMovie, title="Load movie"
+	Button Load, pos={30,77}, size={80,20}, proc=button_loadMovie, title="Load movie"
 	Button Load, fColor=(16191,18504,18761)
 	// ks: multiload movie
-	Button multiLoad, pos={125,77}, size={85,20}, proc=button_multiLoad, title="MultiLoad"
+	Button multiLoad, pos={120,77}, size={70,20}, proc=button_multiLoad, title="MultiLoad"
 	Button multiLoad, fColor=(16191,18504,18761)
+	// ks: expWave -- load experiment (stimulus/analysis) wave
+	Button LoadExpWave, pos={200,77}, size={70,20}, proc=button_LoadExpWave, title="expWave"
+	Button LoadExpWave, fColor=(16191,18504,18761)
 	// ks: run
-	Button runKS, pos={225,77}, size={85,20}, proc=button_runKS, title="Run KS"
-	Button runKS, fColor=(16191,18504,18761)
-	// ks: make overlay & overlay + input movies
-	checkBox mkVideos, pos={320,80}, size={10,20}, proc=pigMakeVideos, title="Save"
+	Button runKS, pos={280,77}, size={85,20}, proc=button_runKS, title="Run KS"
+	Button runKS, fColor=(16191,18504,18761), fstyle=0
+	// ks: save -- make overlay & overlay + input movies
+	// checkBox mkVideos, pos={320,80}, size={10,20}, proc=pigMakeVideos, title="Save"
+	checkBox mkVideos, pos={300,15}, size={10,20}, proc=pigMakeVideos, title="Save"
 	checkBox mkVideos, help={"output overlay & overlay + stimulus videos"}, fSize=12, fStyle=1
-	checkBox mkVideos, fsize=12, side=0, value=0
+	checkBox mkVideos, fsize=12, side=0, value=0, fcolor = (65535,65535,65535)
 	// other functions: main box
 	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (10283,48779,31735)
@@ -212,6 +217,20 @@ function button_multiLoad(ba) : ButtonControl
 	return 0
 end
 
+// pig: load experiment wave
+function button_LoadExpWave(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+
+			pigLoadExpWave()
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
 
 // pig: define FOV
 function button_setFOV(sva) : SetVariableControl
@@ -312,39 +331,31 @@ function button_runKS(ba) : ButtonControl
 		case 2: // mouse up
 			
 			// drop-down menu for movie
+			string expName, expWave
+			string cwd = getDataFolder(1)
 			// this removes all the ks processed movies from the list
 			string list=wavelist("!*_reg*",";","DIMS:3")
-			string name
-			prompt name, "pick movie (in current data folder)", popup,list
+			prompt expName, "pick movie (in current data folder)", popup, list
 			// drop-down menu for type of analysis
-			string types="default;use stimulus wave;use analysis wave"
-			string type
-			prompt type, "pick analysis file (default = baseline/responses)", popup,types
+			setDataFolder root:expWaves
+			string expWaves = waveList("*", ";", "")
+			setDataFolder cwd
+			prompt expWave, "pick analysis file (default = baseline/responses)", popup, expWaves
 			// call/make pop-up window
-			doprompt "pick movie ", name, type
+			doprompt "pick movie ", expName, expWave
 			if(V_flag==1)
 				Abort
-			endif	
-			wave picwave=$name
-			
-			if (cmpstr(type,"use stimulus wave") == 0)
-				if (waveExists($"!*stimulus*"))
-					print("stimulus ok")
-				else
-					print "\ncannot find stimulus file in folder"
-					Abort
-				endif
-			elseif (cmpstr(type, "use analysis wave") == 0)
-				if (waveExists($"!*analysis*"))
-					print("analysis ok")
-				else
-					print "\ncannot find analysis file in folder"
-					Abort
-				endif
 			endif
+			wave picwave=$expName
+			// save expWaveName for later
+			svar aeWaves = root:Packages:pig:aeWaves
+			aeWaves += "
 			
 			// pigRunKS(picwave)
 			print "run ks"
+			print name
+			print expWave
+			kkk
 			
 			break
 		case -1: // control being killed
