@@ -25,7 +25,7 @@ class KS_pipeline:
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
         concat = "",                    # needed for concatenated movies
-        analysisWave="",                # to replace default comparator from mk stimulus
+        analysisWave=False,             # to replace default comparator from mk stimulus
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks
@@ -151,14 +151,14 @@ class KS_pipeline:
         # like in emily & elliot's movies
         # and the only way to know the stimulus will be to access some file
         # this also applies to any arbitrary segmentation to analyse the data
-        if len(self.analysisWave) > 0:
-            # this is assuming the name of the file is this
+        if self.analysisWave:
+            # this is assuming the name of the file is this anWave.txt
             # stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
-            awave = os.path.join(self.fdir,self.analysisWave)
-            if os.path.isfile(awave):
-                with open(awave, "r") as f:
-                    awave_txt = f.read()
-                self.stimulus = np.array(awave_txt.split('\n')[1:-1], dtype=int)
+            aewave_txt = os.path.join(self.fdir,"anWave.txt")
+            if os.path.isfile(aewave_txt):
+                with open(aewave_txt, "r") as f:
+                    awave = f.read()
+                self.stimulus = np.array(awave.split('\n')[1:-1], dtype=int)
         else:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
@@ -713,7 +713,7 @@ if __name__ == "__main__":
     min_distance = 3
     synapse_size = 2
     concat = ""                 # has to be changed for concatenated movies
-    analysisWave = ""           # stimulus/analysis wave 
+    analysisWave = False        # stimulus/analysis wave 
     mk_videos = False           # overlay and overlay + stimulus
     igor = True                 # mostly for debugging
     # look for arguments
@@ -730,7 +730,7 @@ if __name__ == "__main__":
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
         if arg.startswith('--anWave'):
-            analysisWave = str(arg.split('=')[1])
+            analysisWave = True
         if arg == '--mk-videos':
             mk_videos = True
         # can be changed from terminal

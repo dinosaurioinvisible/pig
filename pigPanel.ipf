@@ -8,14 +8,15 @@ Window pigPanel(): Panel_pig
 	PauseUpdate; Silent 1	
 	// for manually defining global variables
 	// changed ROIsize to approxROIsize to avoid conflict with Kasia's macros
-	NewDataFolder/O root:Packages:pig
+	NewDataFolder/o root:Packages:pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
 	variable/g root:Packages:pig:approxROIsize=2
 	variable/g root:Packages:pig:minDist=3
 	string/g root:Packages:pig:ccMovies=""
 	variable/g root:Packages:pig:mkVideos=0
-	string/g root:Packages:pig:anWaves=""
+	newDataFolder/o root:analysisWaves
+	// string/g root:Packages:pig:anWaves=""
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
@@ -346,19 +347,17 @@ function button_runKS(ba) : ButtonControl
 			if(V_flag==1)
 				Abort
 			endif
-			// movie
+			// movie & analysis wave
 			wave picwave = $expName
-			// analysis wave
-			// cmpstr: 0 = equal, 1 = not equal
-			if (cmpstr(expWave,"default") == 1)
-				// save analysis wave name for later
-				svar anWaves = root:Packages:pig:anWaves
-				if (whichListItem(expWave, anWaves) == -1)
-					anWaves = expName +";"+ expName +"="+ expWave +";"
-				endif
-			endif
+			wave anWave = $expWave
 			
-			pigRunKS(picwave)
+			// cmpstr: 0 = equal, 1 = different
+			if (cmpstr(expWave,"default") == 1)
+				// pass analysis wave as optional argument
+				pigRunKS(picwave, analysisWave=anWave)	
+			else
+				pigRunKS(picwave)
+			endif
 			
 			break
 		case -1: // control being killed

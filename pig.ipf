@@ -534,11 +534,16 @@ function pigLoadAnalysisWave()
 	string fname
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
-		fname = ParseFilePath(3, path, "\\", 0, 0)
+		// removes everything before the last ":" or "\\", etc
+		fname = parseFilePath(3, path, "\\", 0, 0)
+		fname = parseFilePath(3, path, ":", 0, 0)
 	else
+		fname = ParseFilePath(3, path, "/", 0, 0)
 		fname = ParseFilePath(3, path, ":", 0, 0)
 	endif
+	fname = ReplaceString(" ", fname, "_")
 	// create folder, move and load waves there
+	// the /o here is not overwrite, but create if not
 	newDataFolder/o/s root:$"analysisWaves"
 	// load
 	if (cmpStr(path[strlen(path)-4,strlen(path)-1], ".txt") == 0)
@@ -569,7 +574,7 @@ end
 
 // 10.
 // run ks analysis
-function pigRunKS(wave movie)
+function pigRunKS(wave movie [wave analysisWave])
 	
 	string platform = IgorInfo(2)
 	// path to python interpreter
@@ -590,7 +595,6 @@ function pigRunKS(wave movie)
 	nvar approxROIsize = root:Packages:pig:approxROIsize
 	nvar minDist = root:Packages:pig:minDist
 	svar ccMovies = root:Packages:pig:ccMovies
-	svar anWaves = root:Packages:pig:anWaves
 	nvar mkVideos = root:Packages:pig:mkVideos
 	// if ks files in folder, mk new (avoid confusion)
 	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(approxROIsize) + "_d" + num2str(minDist)
@@ -610,16 +614,24 @@ function pigRunKS(wave movie)
 	// this is to see check for concatenated movies
 	// whichListItem return the index, if found
 	variable ccx = whichListItem(bn, ccMovies)
-	variable anx = whichListItem(bn, anWaves)
+	// now check for analysis wave
+	variable anx = 0
+	if (paramIsDefault(analysisWave) == 0)
+		anx = 1
+		// make stimulus for ks in python
+		// g:general text, m:terminator string, o:overwrites
+		string fdir = stringByKey("fdir",note(movie),"=","\r")
+		save/g/m="\n"/dlim=","/o analysisWave as fdir
+	endif
 	
 	// run KS
 	string dirpath
 	string ks_args
 	// check platform
 	if (CmpStr(platform, "Windows") == 0)
-		// arguments for base runnning command
+		// base optional arguments for running ks
    		sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
-   	// mk videos opt
+   		// mk videos opt
     	if (mkVideos == 1)
        	ks_args += " --mk-videos"
     	endif
@@ -629,9 +641,8 @@ function pigRunKS(wave movie)
        	ks_args += " --concat=" + ccList
     	endif
     	// if analysis wave
-    	if (anx > -1)
-	    	string analysisWave = stringByKey(bn,ccMovies,"=",";")
-       	ks_args += " --anWave=" + analysisWave
+    	if (anx == 1)
+    		ks_args += " --anWave"
     	endif
     else
     	// in mac is a bit more complicated (at least for me)
@@ -645,10 +656,10 @@ function pigRunKS(wave movie)
 			ccList = stringByKey(bn,ccMovies,"=",";")
 			if (anx > -1)
 				// concatenated + analysis wave
-				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList, analysisWave
+				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
 				// + videos
 				if (mkVideos == 1)
-					sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList, analysisWave
+					sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
 				endif
 			else
 				// just concatenated
@@ -817,15 +828,17 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 	// load
 	pigLoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder
-	// removeS
+	// remove
+	string cmd
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
-		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+pathToTempFolder
+		cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
+		print "pilhjsdf"
+		print cmd
+		executeScriptText/b/z cmd
 		print s_value
 	else
-		// string cmd
-		// sprintf cmd, "do shell script \"rm -rf %s\"", pathToTempFolder
-		string cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
+		cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
 		executeScriptText/b/z cmd
 		print s_value
 	endif
