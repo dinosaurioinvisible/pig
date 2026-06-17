@@ -367,8 +367,11 @@ function pigMultiLoad()
 	// replace spaces with underscores (to avoid failure at loading)
 	basename = ReplaceString(" ", basename, "_")
 	// create folder for movie and move loaded movie there
-	newDataFolder/o root:$basename
-	setDataFolder "root:" + basename
+	string dirName = basename + "_multi" + num2str(nfiles)
+	// newDataFolder/o root:$basename
+	// setDataFolder "root:" + basename
+	newDataFolder/o root:$dirName
+	setDataFolder "root:" + dirName
 	// iterate 
 	// load, get metadata & de-interleave
 	variable ifile
@@ -589,6 +592,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	else
 		pathToMovie = parseFilePath(5, pathToMovieIgor,"/",0,0)
 	endif
+	
 	// optional parameters
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
@@ -605,14 +609,14 @@ function pigRunKS(wave movie [wave analysisWave])
 		print("\nit seems you've already processed this same movie & parameters?\n")
 		abort
 	endif
-	
+	// optional analysis wave
 	// create & move to new folder in the data browser
 	newDataFolder/o root:$newFolderName
 	setDataFolder $("root:" + newFolderName)
 	// check if concatenated or not (cc do not need deinterleaving)
 	string bn = stringByKey("basename",note(movie),"=","\r")
 	// this is to see check for concatenated movies
-	// whichListItem return the index, if found
+	// whichListItem return the index, if found (ccx = 1 if none)
 	variable ccx = whichListItem(bn, ccMovies)
 	// now check for analysis wave
 	variable anx = 0
@@ -621,7 +625,8 @@ function pigRunKS(wave movie [wave analysisWave])
 		// make stimulus for ks in python
 		// g:general text, m:terminator string, o:overwrites
 		string fdir = stringByKey("fdir",note(movie),"=","\r")
-		save/g/m="\n"/dlim=","/o analysisWave as fdir
+		newPath/o/q anWavePath, fdir
+		save/g/m="\n"/dlim=","/p=anWavePath/o analysisWave as "anWave.txt"
 	endif
 	
 	// run KS
@@ -630,8 +635,8 @@ function pigRunKS(wave movie [wave analysisWave])
 	// check platform
 	if (CmpStr(platform, "Windows") == 0)
 		// base optional arguments for running ks
-   		sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
-   		// mk videos opt
+   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+   	// mk videos opt
     	if (mkVideos == 1)
        	ks_args += " --mk-videos"
     	endif
@@ -645,30 +650,21 @@ function pigRunKS(wave movie [wave analysisWave])
     		ks_args += " --anWave"
     	endif
     else
-    	// in mac is a bit more complicated (at least for me)
+    	// for mac it's a bit more difficult (for me at least)
+    	// base arguments (alpha, ROIsize, minDist)
     	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+    	// if concatenated movies (multi load)
+    	if (ccx > -1)
+    		ccList = stringByKey(bn,ccMovies,"=",";")
+	    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
+		endif
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
-			sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+			ks_args += "\' \'--mk-videos"
 		endif
-		// check if concatenated
-		if (ccx > -1)
-			ccList = stringByKey(bn,ccMovies,"=",";")
-			if (anx > -1)
-				// concatenated + analysis wave
-				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
-				// + videos
-				if (mkVideos == 1)
-					sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--anWave\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
-				endif
-			else
-				// just concatenated
-				sprintf ks_args, "\--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
-				if (mkVideos == 1)
-					// + videos
-					sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s\' \'--mk-videos", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
-				endif
-			endif
+		// if anwave, use analysis wave, instead of ch2
+		if (anx == 1)
+			ks_args += "\' \'--anwave"
 		endif
     endif
 	// check platform
@@ -820,7 +816,7 @@ end
 // to load python outputs and then remove temporal folders
 function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 	// quick check
-	print "pathToTempFolder= " + pathToTempFolder
+	print "pathToTempFolder: " + pathToTempFolder
 	if (strlen(pathToTempFolder)==0)
 		print("\nnull path\n")
 		abort
@@ -833,6 +829,7 @@ function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
 		cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
+		// debugging now kkk
 		print "pilhjsdf"
 		print cmd
 		executeScriptText/b/z cmd

@@ -26,6 +26,7 @@ Function/S pigLoadFiles([string dirpath, string filters, variable returnOnly, st
 	endif
 	// check for mkFolder (to create a new folder and put things there)
 	if (paramIsDefault(mkFolder) == 0)
+		// no need to create folder if return only
 		if (returnOnly == 0)
 			// this /o is not overwrite, but avoid error if folder exists
 			newDataFolder/o/s root:$mkFolder
@@ -108,10 +109,10 @@ Function/S pigLoadFiles([string dirpath, string filters, variable returnOnly, st
 			String path = dirpath+StringFromList(iFile, outputPaths, sep)
 			Printf "%d: %s\r", iFile, path
 			// for macos
-			// if (CmpStr(platform, "Windows") != 0)
-				// path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
-				// Printf "%d: %s\r", iFile, path
-			// endif
+			if (CmpStr(platform, "Windows") != 0)
+				path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
+				Printf "%d: %s\r", iFile, path
+			endif
 			// get filenames for igor data browser
 			if (CmpStr(platform, "Windows") == 0)
 				string fname = ParseFilePath(3, path, "\\", 0, 0)

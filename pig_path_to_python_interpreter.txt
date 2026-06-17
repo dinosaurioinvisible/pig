@@ -1,1 +1,1 @@
-C:\Users\Fernando\zf\zv\Scripts\python.exe 
+/Users/f/vi/bin/python

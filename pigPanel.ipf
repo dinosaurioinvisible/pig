@@ -343,20 +343,25 @@ function button_runKS(ba) : ButtonControl
 			setDataFolder cwd
 			prompt expWave, "pick analysis file (default = baseline/responses)", popup, expWaves
 			// pop-up window
-			doprompt "pick movie ", expName, expWave
+			doprompt "pick movie (& analysis wave)", expName, expWave
 			if(V_flag==1)
 				Abort
 			endif
+			
 			// movie & analysis wave
-			wave picwave = $expName
-			wave anWave = $expWave
+			// we need full paths, because they're from different dirs
+			string picwave_filepath = cwd + expName
+			wave picwave = $picwave_filepath
+			string expwave_filepath = "root:analysisWaves:" + expwave
+			wave anWave = $expWave_filepath
 			
 			// cmpstr: 0 = equal, 1 = different
-			if (cmpstr(expWave,"default") == 1)
+			if (cmpstr(expWave_filepath,"root:analysisWaves:default") == 0)
+				print "\n just picwave"
+				pigRunKS(picwave)
+			else
 				// pass analysis wave as optional argument
 				pigRunKS(picwave, analysisWave=anWave)	
-			else
-				pigRunKS(picwave)
 			endif
 			
 			break

@@ -1,20 +1,22 @@
 
+# base imports
 import sys
 import os
+import platform
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+# general modules
 import numpy as np
 import tifffile as tf
-import matplotlib.pyplot as plt
-
+import pandas as pd
+# specific functions
 from scipy.optimize import curve_fit
 from scipy.ndimage import shift, gaussian_filter
 from scipy.stats import ks_2samp
 from skimage.registration import phase_cross_correlation
 from skimage.feature import peak_local_max
 from skimage.draw import circle_perimeter
-
 from scipy.ndimage import zoom
-import pandas as pd
-from matplotlib.animation import FuncAnimation
 
 
 class KS_pipeline:
@@ -82,9 +84,14 @@ class KS_pipeline:
         x = tf.TiffFile(self.fpath)
         # check for concatenation
         if len(self.concat) > 0:
-            movie_paths = ['C:'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
+            if platform.system() == 'Windows':
+                movie_paths = ['C:'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
+            elif platform.system() == 'Darwin':
+                movie_paths = [mp for mp in self.concat[1:-1].replace(":","/").replace("Macintosh HD","").split(",")]
+            else:
+                print("\nplatform not recognized (this only runs on Windows and MacOS)\n")
             movies = [tf.imread(path) for path in movie_paths]
-            self.cc_nframes = [len(movie) for movie in movies]
+            self.cc_nframes = [int(len(movie)/2) for movie in movies]
             raw_movie = np.concatenate(movies,axis=0)
         else:
             raw_movie = x.asarray()
@@ -94,7 +101,7 @@ class KS_pipeline:
         if self.igor:
             self.mk_names()
             if len(self.concat) > 0:
-                print(f'loaded movie from: {movie_paths}')
+                print(f'loaded movies from: {movie_paths}')
             else:
                 print(f'loaded movie from: {self.fpath}')
         # metadata (assuming scanImage)
@@ -159,7 +166,7 @@ class KS_pipeline:
             if os.path.isfile(aewave_txt):
                 with open(aewave_txt, "r") as f:
                     awave = f.read()
-                self.stimulus = np.array(awave.split('\n')[1:-1], dtype=int)
+                self.stimulus = np.array(awave.split('\n')[:-1], dtype=int)
         else:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
@@ -293,7 +300,7 @@ class KS_pipeline:
             return
         # if concat:
         # this may seem strange/confusing
-        # is just to avoid changing the code later
+        # it's just to avoid changing the code later
         movie = self.movie.copy()
         start, end = 0, 0
         for nframes in self.cc_nframes:
@@ -306,11 +313,11 @@ class KS_pipeline:
             # new start (same as start = end)
             start += nframes
         # change back
-        self,movie = movie.copy()
+        self.movie = movie.astype(float)
         
         # now ∆f/f normalization for all
         # from Kasia's code
-        n_movies = len(self.cc_indexes)
+        n_movies = len(self.cc_nframes)
         # first pass: get means & overall mean
         movies_means = np.zeros(n_movies)
         start, end = 0, 0
@@ -338,7 +345,8 @@ class KS_pipeline:
         frame_mean = self.movie.mean(axis=(1,2))
         def exp_decay(t,A,tau,C):
             return A*np.exp(-t/tau)+C
-        t = np.arange(self.nframes)/self.frameRate
+        # t = np.arange(self.nframes)/self.frameRate
+        t = np.arange(self.movie.shape[0])/self.frameRate
         # initial guess for params
         p0 = [frame_mean[0] - frame_mean[-1], self.nframes/self.frameRate/2, frame_mean[-1]]
         # fits a curve to the bleaching using frame_mean as reference
@@ -675,7 +683,6 @@ class KS_pipeline:
             return im, bar
 
         ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
-        # import pdb; pdb.set_trace()
         # ani.save(f'{self.savepath}_overlay_st.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
         # save a copy in folder
         fcopy = os.path.join(self.fdir,self.fname)
@@ -780,7 +787,7 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
-        if arg.startswith('--anWave'):
+        if arg.startswith('--anwave'):
             analysisWave = True
         if arg == '--mk-videos':
             mk_videos = True
