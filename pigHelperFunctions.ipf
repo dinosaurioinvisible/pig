@@ -18,6 +18,18 @@
 // numberByKey
 // itemsInList
 
+// change igor path route name into system naming convention
+function/s renamePath_igor2sys(string igorPath)
+	string path
+	string platform = IgorInfo(2)
+	if (CmpStr(platform, "Windows") == 0)
+		path = parseFilePath(5, igorPath,"\\", 0, 0)
+	else
+		path = parseFilePath(5, igorPath, "/", 0, 0)
+	endif
+	return path
+end
+
 // split delta (from Pawel)
 function splitDeltaF(wave popwave, variable n_reps)
 

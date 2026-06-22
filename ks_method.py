@@ -4,6 +4,7 @@ import sys
 import os
 import platform
 import matplotlib.pyplot as plt
+from pathlib import Path
 from matplotlib.animation import FuncAnimation
 # general modules
 import numpy as np
@@ -27,6 +28,7 @@ class KS_pipeline:
         min_distance = 3,               # between pixel peaks
         synapse_size = 2,               # aprox. size in microns (µm x µm)
         concat = "",                    # needed for concatenated movies
+        tempFolder = "",                # dir for temporary files
         analysisWave = False,           # to replace default comparator from mk stimulus
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
@@ -45,6 +47,7 @@ class KS_pipeline:
             self.min_distance = int(min_distance)
             self.synapseSize = synapse_size
             self.concat = concat
+            self.tempFolder = tempFolder
             self.analysisWave = analysisWave
             self.mk_videos = mk_videos
             # not changeable from igor
@@ -101,9 +104,9 @@ class KS_pipeline:
         if self.igor:
             self.mk_names()
             if len(self.concat) > 0:
-                print(f'loaded movies from: {movie_paths}')
+                print(f'python: processing movies from: {movie_paths}')
             else:
-                print(f'loaded movie from: {self.fpath}')
+                print(f'python: processing movie from: {self.fpath}')
         # metadata (assuming scanImage)
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
@@ -120,7 +123,14 @@ class KS_pipeline:
     def mk_names(self):
         self.fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
         self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
-        savedir = os.path.join(self.fdir,'python_output')
+        # check if route to temp folder has been defined
+        if len(self.tempFolder) > 0 and os.path.isdir(self.tempFolder):
+            savedir = self.tempFolder
+            
+        else:
+            # otherwise, use same dir of movie + python_output
+            savedir = os.path.join(self.fdir,'python_output')
+            print(f'couldn\'t find temp folder at {self.tempFolder}, will try to save files at: {self.savepath}')
         self.savepath = os.path.join(savedir,self.fname)
         if not os.path.isdir(savedir):
             os.mkdir(savedir)
@@ -643,8 +653,8 @@ class KS_pipeline:
         if self.igor:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             if self.mk_videos:
-                # save a copy in same folder
-                fcopy = os.path.join(self.fdir,self.fname)
+                # save a copy in desktop (to avoid permission issues)
+                fcopy = str(Path.gome()/"Desktop")
                 fcopy_path = f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
                 tf.imwrite(fcopy_path, overlay)
                 self.overlay_plus_stimulus(overlay)
@@ -684,8 +694,8 @@ class KS_pipeline:
 
         ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
         # ani.save(f'{self.savepath}_overlay_st.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
-        # save a copy in folder
-        fcopy = os.path.join(self.fdir,self.fname)
+        # save a copy in desktop folder
+        fcopy = str(Path.gome()/"Desktop")
         ani.save(f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
         plt.close()
     
@@ -771,6 +781,7 @@ if __name__ == "__main__":
     min_distance = 3
     synapse_size = 2
     concat = ""                 # has to be changed for concatenated movies
+    tempFolder = ""             # dir for files and outputs
     analysisWave = False        # stimulus/analysis wave 
     mk_videos = False           # overlay and overlay + stimulus
     igor = True                 # mostly for debugging
@@ -787,6 +798,8 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
+        if arg.startswith('--tempFolder'):
+            tempFolder = str(arg.split('=')[1])
         if arg.startswith('--anwave'):
             analysisWave = True
         if arg == '--mk-videos':
@@ -800,6 +813,7 @@ if __name__ == "__main__":
         min_distance=min_distance,
         synapse_size=synapse_size,
         concat=concat,
+        tempFolder=tempFolder,
         analysisWave=analysisWave,
         mk_videos=mk_videos,
         igor=igor,

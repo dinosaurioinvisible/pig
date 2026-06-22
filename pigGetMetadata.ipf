@@ -50,7 +50,8 @@ function pigGetMetadata(wave movie)
 		runPythonScriptOnMovieMacOs(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath)
 	endif
 	// load and remove temp 
-	pigLoadAndRemoveTempFolder(dirPath)
+	// pigLoadAndRemoveTempFolder(dirPath)
+	pigLoadAndRemoveTempFolder()
 	
 end
 

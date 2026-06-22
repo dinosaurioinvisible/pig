@@ -5,22 +5,29 @@
 
 // panel for pig
 Window pigPanel(): Panel_pig
+
 	PauseUpdate; Silent 1	
-	// for manually defining global variables
-	// changed ROIsize to approxROIsize to avoid conflict with Kasia's macros
+	// defining global variables
 	NewDataFolder/o root:Packages:pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
 	variable/g root:Packages:pig:approxROIsize=2
 	variable/g root:Packages:pig:minDist=3
-	string/g root:Packages:pig:ccMovies=""
 	variable/g root:Packages:pig:mkVideos=0
+	string/g root:Packages:pig:ccMovies=""
 	newDataFolder/o root:analysisWaves
-	// string/g root:Packages:pig:anWaves=""
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
 	pigDefinePathToKS()
 	pigDefinePathToGetMetadata()
+	// define other useful paths (pig, temp, desktop)
+	string/g root:Packages:pig:pigPathToPigFolder = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:"
+	string pigTempFolder = specialDirPath("Temporary",0,0,0) + "pig:"
+	// string pigTempFolder = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:temp"
+	string/g root:Packages:pig:pigPathToTempFolder = pigTempFolder
+	newPath/c/o/q pigTemp, pigTempFolder
+	// string/g root:Packages:pig:pigPathToDesktop = specialDirPath("Desktop",0,0,0)
+	
 	// main panel
 	// /w=(left, top, right, bottom)
 	NewPanel/w = (666,111,1055,474) as "Pig — KS analysis"
@@ -75,7 +82,8 @@ Window pigPanel(): Panel_pig
 	DrawRRect 20,140,370,240
 	SetDrawEnv fsize = 16,fstyle = 1,textrgb = (65535,65535,65535)
 	DrawText 33,135,"More"
-	// other functions: buttons
+	
+	// more buttons
 	Button button1,pos={30,150},size={75,20},proc=button1,title="01"
 	Button button1,help={"free button"}
 	Button button1,fColor=(16191,18504,18761)
@@ -110,7 +118,8 @@ Window pigPanel(): Panel_pig
 	Button ROIbuddy,fColor=(16191,18504,18761)
 	Button zapBadROIs,pos={260,210},size={100,20},proc=button_zapBadROIs,title="Zap bad ROIs"
 	Button zapBadROIs,help={"Discard ROIs with bad signals"}
-	Button zapBadROIs,fColor=(16191,18504,18761)	
+	Button zapBadROIs,fColor=(16191,18504,18761)
+
 	// pig: main box
 	// /w=(left, top, right, bottom)
 	SetDrawEnv linethick = 0,fillfgc = (64824,27308,21496)
@@ -128,9 +137,9 @@ Window pigPanel(): Panel_pig
 	SetVariable pigPathToInterpreter, help={"path to python interpreter"},fSize=12,fStyle=1
 	SetVariable pigPathToInterpreter, fColor=(65535,65535,65535)
 	SetVariable pigPathToInterpreter, value = root:Packages:pig:pigPathToPythonInterpreter
-EndMacro
+endMacro
 
-Menu "Macros"
+menu "Macros"
 	"Load PIG - KS analysis", pigPanel()
 end
 
@@ -357,7 +366,6 @@ function button_runKS(ba) : ButtonControl
 			
 			// cmpstr: 0 = equal, 1 = different
 			if (cmpstr(expWave_filepath,"root:analysisWaves:default") == 0)
-				print "\n just picwave"
 				pigRunKS(picwave)
 			else
 				// pass analysis wave as optional argument

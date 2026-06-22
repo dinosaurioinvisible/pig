@@ -70,19 +70,25 @@ Function/S pigLoadFiles([string dirpath, string filters, variable returnOnly, st
 			// this leads to errors if not cheked
 			if (cmpstr(dirpath[strlen(dirpath)-1],"\\") != 0)
 				dirpath += "\\"
-				print "dir path: "+dirpath
+				print "dir path: " + dirpath
 			endif
 		else
 			// this seems to be enough for macos
 			if (cmpstr(dirpath[0],dirpath[strlen(dirpath)-1]) != 0)
-				dirpath += dirpath[0]
-				print "dir path: "+dirpath
+				if (cmpstr(dirpath[0],"/") == 0 || cmpstr(dirpath[0],":") == 0) 
+					dirpath += dirpath[0]
+					print "dir path: " + dirpath
+				endif
 			endif
 		endif
 		sep = ";"
 		// for macos only
 		if (cmpStr(platform, "Windows") != 0)
-			string macdirpath = "Macintosh HD:" + ReplaceString("/", dirpath[1,strlen(dirpath)-1], ":")
+			if (cmpStr(dirpath[0,12],"Macintosh HD:") != 0)
+				string macdirpath = "Macintosh HD:" + ReplaceString("/", dirpath[1,strlen(dirpath)-1], ":")
+			else
+				macdirpath = ReplaceString("/", dirpath[0,strlen(dirpath)-1], ":")
+			endif
 			newPath/O/q sdirpath, macdirpath
 		else
 			newPath/O/q sdirpath, dirpath
@@ -104,20 +110,24 @@ Function/S pigLoadFiles([string dirpath, string filters, variable returnOnly, st
 		// for optional dirpath
 		variable numFilesSelected = ItemsInList(outputPaths, sep)
 		Variable iFile
-		
 		for(iFile=0; iFile<numFilesSelected; iFile+=1)
 			String path = dirpath+StringFromList(iFile, outputPaths, sep)
-			Printf "%d: %s\r", iFile, path
+			// printf "%d: %s\r", iFile, path
 			// for macos
 			if (CmpStr(platform, "Windows") != 0)
-				path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
-				Printf "%d: %s\r", iFile, path
+				if (cmpStr(path[0,12],"Macintosh HD:") != 0)
+					path = "Macintosh HD:" + ReplaceString("/", path[1,strlen(path)-1], ":")
+				else
+					path = ReplaceString("/", path[0,strlen(path)-1], ":")
+				endif
 			endif
 			// get filenames for igor data browser
 			if (CmpStr(platform, "Windows") == 0)
 				string fname = ParseFilePath(3, path, "\\", 0, 0)
+				printf "%d: %s\r", iFile, path
 			else
 				fname = ParseFilePath(3, path, ":", 0, 0)
+				printf "%d: %s\r", iFile, path
 			endif
 			// replace spaces with underscores (to avoid issues at loading/processing)
 			fname = ReplaceString(" ", fname, "_")

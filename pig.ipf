@@ -5,7 +5,7 @@
 #include "pigPanel"
 #include "pigGetMetadata"
 // these have been previously developed in the lab
-// i have modified them (more or less) & added them to the PIG folder
+// i have modified them (some much more than others) & added them to the PIG folder
 // for stand-alone use, and to avoid compilation confusions/issues
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
@@ -97,7 +97,7 @@ function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_pytho
 	print "\nshell command:"
 	print igorcmd
    executeScriptText/z igorcmd
-   // this shows errors from python
+   // do not comment this out, it shows statements coming from python (including errors)
    print "s_value:"
    print s_value
 end
@@ -148,6 +148,7 @@ function pigDefinePythonInterpreterPath()
 		string/g root:Packages:pig:pigPathToPythonInterpreter = ""
 	endif
 end
+
 
 
 // 6.
@@ -575,10 +576,17 @@ function pigLoadAnalysisWave()
 end
 
 
+
 // 10.
+// this functions has 4 main parts:
+// a) definitions and checks
+// b) run python script
+// c) load and remove temp files
+// d) renaming and scaling
 // run ks analysis
 function pigRunKS(wave movie [wave analysisWave])
 	
+	// define basic names
 	string platform = IgorInfo(2)
 	// path to python interpreter
 	svar pigPathToPython = root:Packages:pig:pigPathToPythonInterpreter
@@ -592,14 +600,16 @@ function pigRunKS(wave movie [wave analysisWave])
 	else
 		pathToMovie = parseFilePath(5, pathToMovieIgor,"/",0,0)
 	endif
-	
-	// optional parameters
+	// definitions for optional parameters
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
 	nvar approxROIsize = root:Packages:pig:approxROIsize
 	nvar minDist = root:Packages:pig:minDist
 	svar ccMovies = root:Packages:pig:ccMovies
 	nvar mkVideos = root:Packages:pig:mkVideos
+	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+	// convert path to temp folder to system naming
+	string sysPathToTempFolder = renamePath_igor2sys(pathToTempFolder)
 	// if ks files in folder, mk new (avoid confusion)
 	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(approxROIsize) + "_d" + num2str(minDist)
 	// to avoid naming problems for folder (bad character)
@@ -629,13 +639,12 @@ function pigRunKS(wave movie [wave analysisWave])
 		save/g/m="\n"/dlim=","/p=anWavePath/o analysisWave as "anWave.txt"
 	endif
 	
-	// run KS
-	string dirpath
+	// define arguments before runnning
 	string ks_args
 	// check platform
 	if (CmpStr(platform, "Windows") == 0)
 		// base optional arguments for running ks
-   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder
    	// mk videos opt
     	if (mkVideos == 1)
        	ks_args += " --mk-videos"
@@ -652,11 +661,11 @@ function pigRunKS(wave movie [wave analysisWave])
     else
     	// for mac it's a bit more difficult (for me at least)
     	// base arguments (alpha, ROIsize, minDist)
-    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist)
+    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder
     	// if concatenated movies (multi load)
     	if (ccx > -1)
     		ccList = stringByKey(bn,ccMovies,"=",";")
-	    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), ccList
+	    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder, ccList
 		endif
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
@@ -667,34 +676,38 @@ function pigRunKS(wave movie [wave analysisWave])
 			ks_args += "\' \'--anwave"
 		endif
     endif
-	// check platform
+    
+	// check platform & run KS script
+	string movieDirpath
 	if (CmpStr(platform, "Windows") == 0)
 		RunPythonScriptOnMovieWindows(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
-		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
+		movieDirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
 	else
-	   	RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
-   		dirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
+	   RunPythonScriptOnMovieMacOs(pigPathToPython, pigPathToKS, pathToMovie, args=ks_args)
+   	movieDirpath = pathToMovie[0,strsearch(pathToMovie, "/", strlen(pathToMovie)-1, 3)]
 	endif
 	
-	// location in data browser
-	string movieWave = getWavesDataFolder(movie,2)
-	
 	// load files into igor
-	string path_to_python_output = dirpath+"python_output"
-	pigLoadFiles(dirpath=path_to_python_output)
+	// this is a proper temp folder now, instead of same movieDirpath
+	string path_to_python_output = sysPathToTempFolder
 	print "temporal files at: "+path_to_python_output
+	pigLoadFiles(dirpath=path_to_python_output)
 	// remove temporal files
+	print "removing temporal files from: "+path_to_python_output
 	if (CmpStr(platform, "Windows") == 0)
-		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
+		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output
 	else
 		string igorcmd = "do shell script \"rm -rf \'" + path_to_python_output + "\'\""
 		print igorcmd
    	executeScriptText/z igorcmd
 		print s_value
 	endif
-	print "removed temporal files from: "+path_to_python_output
+	// create new empty pig temp folder
+	newPath/c/o/q pigTemp, pathToTempFolder
 	
-	// scale ks imported files
+	// rename & scale ks imported files
+	// location in data browser
+	string movieWave = getWavesDataFolder(movie,2)
 	// to adjust temporal scaling
 	variable dt = numberByKey("dt",note(movie),"=","\r")
 	// copyscales sourceWave, destinationWave
@@ -814,10 +827,12 @@ end
 
 // 12.
 // to load python outputs and then remove temporal folders
-function pigLoadAndRemoveTempFolder(string pathToTempFolder)
+// function pigLoadAndRemoveTempFolder(string pathToTempFolder)
+function pigLoadAndRemoveTempFolder()
 	// quick check
-	print "pathToTempFolder: " + pathToTempFolder
-	if (strlen(pathToTempFolder)==0)
+	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+	print "\npathToTempFolder: " + pathToTempFolder
+	if (strlen(pathToTempFolder) == 0)
 		print("\nnull path\n")
 		abort
 	endif
