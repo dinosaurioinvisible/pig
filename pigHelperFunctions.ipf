@@ -18,6 +18,26 @@
 // numberByKey
 // itemsInList
 
+
+// abort if python interpreter hasn't been correctly defined
+function checkPythonInterpreter()
+	svar pathToPython = root:Packages:pig:pigPathToPythonInterpreter
+	string isPath = doesFileExist(pathToPython)
+	if (cmpstr(isPath,"found") != 0)
+		print "\n\tPIG cannot run without a Python interpreter! Please define one"
+		abort
+	endif
+end
+
+// check if file exists (including aliases)
+// igor cannot handle aliases, and python locations normally are
+// returns a string: "found" or "not found"
+function/s doesFileExist(string filepath)
+	string cmd = "do shell script \"test -f  \'" + filepath + "\' && echo 'found' || echo 'not found'\""
+	executeScriptText/z cmd
+	return s_value
+end
+
 // change igor path route name into system naming convention
 function/s renamePath_igor2sys(string igorPath)
 	string path

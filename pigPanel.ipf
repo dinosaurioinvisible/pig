@@ -171,6 +171,12 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 			string pathToTxt
 			string pathToPython = sval
 			string pythonEnvironmentDir = pigPath
+			// check if python interpreter actually exists
+			string isFile = doesFileExist(pathToPython)
+			if (cmpstr(isFile,"found") != 0)
+   	 		print "\n\tCannot find interpreter at that location - python path has not been saved"
+   	 		abort
+			endif
 			// check platform
 			string platform = IgorInfo(2)
 			if (CmpStr(platform, "Windows") != 0)

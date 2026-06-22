@@ -35,11 +35,13 @@
 // 0.
 // we want to define paths that can be reused
 // for the path to the python interpreter: 
-// there is a function that may be called only once
 // we're creating a txt file that can be read every time pig is loaded
-// the txt contains the path to the python interpreter
+// the txt file stores the path written in the panel
 // that path (if exists) is loaded as a global variable
-// when pressing the 'python' button
+// every time pig is initialized
+// there are hardcoded paths to some python functions as well:
+// ks_method.py & getMetadata.py
+// if necessary, these can be changed from the pigPanel.ipf script
 
 
 // 1.
@@ -173,6 +175,9 @@ end
 // load movie
 function pigLoadMovie()
 	
+	// check python interpreter
+	// it's necessary for getMetadata()
+	checkPythonInterpreter()
 	// in case the user is loading from inside another dir
 	setDataFolder root:
 	// load normally
@@ -345,6 +350,10 @@ end
 // 8. 
 // load multiple movies
 function pigMultiLoad()
+	
+	// check python interpreter
+	// it's necessary for getMetadata()
+	checkPythonInterpreter()
 	
 	// select movies
 	variable refnum
@@ -586,6 +595,8 @@ end
 // run ks analysis
 function pigRunKS(wave movie [wave analysisWave])
 	
+	// first of all - check python interpreter
+	checkPythonInterpreter()
 	// define basic names
 	string platform = IgorInfo(2)
 	// path to python interpreter
