@@ -20,12 +20,23 @@
 
 
 // abort if python interpreter hasn't been correctly defined
-function checkPythonInterpreter()
+function checkPythonInterpreter([variable stop])
+	// optional stop of main function calling this one
+	variable stopExecution
+	if (paramIsDefault(stop) > 0)
+		stopExecution = 1
+	else
+		stopExecution = 0
+	endif
+	// check python interpreter
 	svar pathToPython = root:Packages:pig:pigPathToPythonInterpreter
 	string isPath = doesFileExist(pathToPython)
 	if (cmpstr(isPath,"found") != 0)
-		print "\n\tPIG cannot run without a Python interpreter! Please define one"
-		abort
+		print "\n\tThe path to the interpreter is invalid"
+		print "\tPIG cannot run without a Python interpreter. Please define one"
+		if (stopExecution == 1)
+			abort
+		endif
 	endif
 end
 

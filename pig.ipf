@@ -5,7 +5,7 @@
 #include "pigPanel"
 #include "pigGetMetadata"
 // these have been previously developed in the lab
-// i have modified them (some much more than others) & added them to the PIG folder
+// i have modified them (some more than others) & added them to the PIG folder
 // for stand-alone use, and to avoid compilation confusions/issues
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
@@ -142,13 +142,15 @@ function pigDefinePythonInterpreterPath()
 			endif
 		endif
 		// print info
-		print "\n\tusing python interpreter at: "+pathToPython
-		print "\tpython path saved in txt file at: "+pathToTxt
+		print "\n\tpython path saved in txt file at: "+pathToTxt
+		print "\tusing python interpreter at: "+pathToPython
 		string/g root:Packages:pig:pigPathToPythonInterpreter = TrimString(pathToPython)
 	else
 		print "\npig_path_to_python_interpreter.txt not found"
 		string/g root:Packages:pig:pigPathToPythonInterpreter = ""
 	endif
+	// final check (stop=1 = True)
+	checkPythonInterpreter(stop=0)
 end
 
 
@@ -231,6 +233,7 @@ function pigLoadMovie()
 		nvar fov = root:Packages:pig:FOV
 		note $movieName, "fov=" + num2str(fov)
 		// try to get metadata
+		print "\ncouldn\'t access metadata, trying with getMetadata()"
 		pigGetMetadata($movieName)
 		// move metadata from root: to movie folder
 		string cwdx = getDataFolder(1)
@@ -619,8 +622,6 @@ function pigRunKS(wave movie [wave analysisWave])
 	svar ccMovies = root:Packages:pig:ccMovies
 	nvar mkVideos = root:Packages:pig:mkVideos
 	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
-	// convert path to temp folder to system naming
-	string sysPathToTempFolder = renamePath_igor2sys(pathToTempFolder)
 	// if ks files in folder, mk new (avoid confusion)
 	string newFolderName = nameOfWave(movie) + "_f" + num2str(fov) + "_a" + num2str(alpha)[2,3] + "_r" + num2str(approxROIsize) + "_d" + num2str(minDist)
 	// to avoid naming problems for folder (bad character)
@@ -655,7 +656,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	// check platform
 	if (CmpStr(platform, "Windows") == 0)
 		// base optional arguments for running ks
-   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder
+   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder
    	// mk videos opt
     	if (mkVideos == 1)
        	ks_args += " --mk-videos"
@@ -672,11 +673,11 @@ function pigRunKS(wave movie [wave analysisWave])
     else
     	// for mac it's a bit more difficult (for me at least)
     	// base arguments (alpha, ROIsize, minDist)
-    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder
+    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder
     	// if concatenated movies (multi load)
     	if (ccx > -1)
     		ccList = stringByKey(bn,ccMovies,"=",";")
-	    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), sysPathToTempFolder, ccList
+	    	sprintf ks_args, "--fov=%s\' \'--alpha=%s\' \'--ROIsize=%s\' \'--minDist=%s\' \'--tempFolder=%s\' \'--concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder, ccList
 		endif
 		// if mkVideos, create output videos in folder
 		if (mkVideos == 1)
@@ -700,21 +701,20 @@ function pigRunKS(wave movie [wave analysisWave])
 	
 	// load files into igor
 	// this is a proper temp folder now, instead of same movieDirpath
-	string path_to_python_output = sysPathToTempFolder
-	print "temporal files at: "+path_to_python_output
-	pigLoadFiles(dirpath=path_to_python_output)
+	print "temporal files at: " + pathToTempFolder
+	pigLoadFiles(dirpath=pathToTempFolder)
 	// remove temporal files
-	print "removing temporal files from: "+path_to_python_output
+	// these remove files inside the folder, but not the folder itself
+	print "removing temporal files from: " + pathToTempFolder
 	if (CmpStr(platform, "Windows") == 0)
-		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output
+		// executeScriptText/b/z "cmd.exe /c rmdir /s /q " + pathToTempFolder
+		executeScriptText/b/z "cmd.exe /c del /q " + pathToTempFolder + "\\*.*"
 	else
-		string igorcmd = "do shell script \"rm -rf \'" + path_to_python_output + "\'\""
+		string igorcmd = "do shell script \"rm -rf '" + pathToTempFolder + "'*\""
 		print igorcmd
    	executeScriptText/z igorcmd
 		print s_value
 	endif
-	// create new empty pig temp folder
-	newPath/c/o/q pigTemp, pathToTempFolder
 	
 	// rename & scale ks imported files
 	// location in data browser
@@ -851,21 +851,32 @@ function pigLoadAndRemoveTempFolder()
 	pigLoadFiles(dirpath=pathToTempFolder)
 	print "loaded temporal files at: "+pathToTempFolder
 	// remove
-	string cmd
 	string platform = IgorInfo(2)
+	print "removing temporal files from: " + pathToTempFolder
 	if (CmpStr(platform, "Windows") == 0)
-		cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
-		// debugging now kkk
-		print "pilhjsdf"
-		print cmd
-		executeScriptText/b/z cmd
-		print s_value
+		executeScriptText/b/z "cmd.exe /c del /q " + pathToTempFolder + "\\*.*"
 	else
-		cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
-		executeScriptText/b/z cmd
+		string igorcmd = "do shell script \"rm -rf '" + pathToTempFolder + "'*\""
+		print igorcmd
+   	executeScriptText/z igorcmd
 		print s_value
 	endif
-	print "removed temporal files from: "+pathToTempFolder
+	// remove
+	// string cmd
+	// string platform = IgorInfo(2)
+	// if (CmpStr(platform, "Windows") == 0)
+		// cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
+		// debugging now kkk
+		// print "pilhjsdf"
+		// print cmd
+		// executeScriptText/b/z cmd
+		// print s_value
+	// else
+		// cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
+		// executeScriptText/b/z cmd
+		// print s_value
+	// endif
+	// print "removed temporal files from: "+pathToTempFolder
 end
 
 

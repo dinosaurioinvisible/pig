@@ -21,12 +21,11 @@ Window pigPanel(): Panel_pig
 	pigDefinePathToKS()
 	pigDefinePathToGetMetadata()
 	// define other useful paths (pig, temp, desktop)
-	string/g root:Packages:pig:pigPathToPigFolder = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:"
+	string pigPath = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:"
+	string/g root:Packages:pig:pigPathToPigFolder = renamePath_igor2sys(pigPath)
 	string pigTempFolder = specialDirPath("Temporary",0,0,0) + "pig:"
-	// string pigTempFolder = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:temp"
-	string/g root:Packages:pig:pigPathToTempFolder = pigTempFolder
+	string/g root:Packages:pig:pigPathToTempFolder = renamePath_igor2sys(pigTempFolder)
 	newPath/c/o/q pigTemp, pigTempFolder
-	// string/g root:Packages:pig:pigPathToDesktop = specialDirPath("Desktop",0,0,0)
 	
 	// main panel
 	// /w=(left, top, right, bottom)
@@ -159,7 +158,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 			string/g root:Packages:pig:pigPathToPythonInterpreter = sval
 			
 			// TODO:
-			// make a function in pig.ipf for this
+			// make a function in a different .ipf for this
 			// create txt file 
 			string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
 			// create pig folder if it doesn't exists

@@ -15,7 +15,7 @@ def flatten_dict(d, parent_key="", sep="."):
     return flat
 
 # input: path to movie
-def get_scanImage_metadata(path_to_movie,igor=False):
+def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,):
     # load movie
     x = tf.TiffFile(path_to_movie)
     metadata = {}
@@ -67,7 +67,10 @@ def get_scanImage_metadata(path_to_movie,igor=False):
             metadata[tag.name] = tag_data
     # output to be loaded in igor
     if igor:
-        fdir = os.path.join(os.path.sep.join(path_to_movie.split(os.path.sep)[:-1]),'python_output')
+        if len(tempFolder) > 0:
+            fdir = tempFolder
+        else:
+            fdir = os.path.join(os.path.sep.join(path_to_movie.split(os.path.sep)[:-1]),'python_output')
         if not os.path.isdir(fdir):
             os.mkdir(fdir)
         fname = path_to_movie.split(os.path.sep)[-1].split('.')[0] + '_metadata.txt'
@@ -95,7 +98,11 @@ def get_scanImage_metadata(path_to_movie,igor=False):
 # to run from terminal
 if __name__ == "__main__":
     path_to_movie = sys.argv[1]
-    get_scanImage_metadata(path_to_movie,igor=True)
+    tempFolder = ""
+    for ei,arg in enumerate(sys.argv):
+        if arg.startswith('--tempFolder'):
+            tempFolder = str(arg.split('=')[1])
+    get_scanImage_metadata(path_to_movie,igor=True,tempFolder=tempFolder)
 
 
 

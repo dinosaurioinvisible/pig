@@ -5,7 +5,8 @@
 // define path to script
 function pigDefinePathToGetMetadata()
 	// path to pig directory in user procedures
-	string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
+	// string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
+	svar pigPath = root:Packages:pig:pigPathToPigFolder
 	string pathToGetMetadataIgor = pigPath + "get_metadata.py"
 	// make path to file
 	string platform = IgorInfo(2)
@@ -19,41 +20,32 @@ function pigDefinePathToGetMetadata()
 end
 
 
+
 // this function uses pig to retrieve full metadata
 function pigGetMetadata(wave movie)
 	string platform = IgorInfo(2)
 	// get path to movie
 	string info = note(movie)
-	string dirPath = stringByKey("fdir",info,"=","\r") + "python_output:"
-	string moviePath = stringByKey("fpath",info,"=","\r")
-	string basename = stringByKey("basename",info,"=","\r")
-	// change to system format
-	if (CmpStr(platform, "Windows") == 0)
-		dirPath = parseFilePath(5, dirPath, "\\", 0, 0)
-		moviePath = parseFilePath(5, moviePath, "\\", 0, 0)
-	else
-		// dirPath = parseFilePath(5, dirPath, "/", 0, 0)
-		// this doesn't work here & actually crashes the program
-		// so it's better to do it manually
-		dirPath = replaceString("Macintosh HD:", dirPath, "")
-		dirPath = replaceString(":", dirPath, "/")
-		dirPath = "/" + dirPath
-		moviePath = parseFilePath(5, moviePath, "/", 0, 0)
-	endif
-	// we need python interpreter & path to the python script
+	string moviePathNotes = stringByKey("fpath",info,"=","\r")
+	string moviePath = renamePath_igor2sys(moviePathNotes)
+	// we need python interpreter, path to the python script & to the temp folder
 	svar pigPathToPythonInterpreter = root:Packages:pig:pigPathToPythonInterpreter
 	svar pigPathToGetMetadata = root:Packages:pig:pigPathToGetMetadata
+	svar pigPathToTempFolder = root:Packages:pig:pigPathToTempFolder
 	// run script on movie - this produces the txt with the metadata
+	string temp
 	if (CmpStr(platform, "Windows") == 0)		
-		runPythonScriptOnMovieWindows(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath)
+		sprintf temp, "--tempFolder=%s", pigPathToTempFolder
+		runPythonScriptOnMovieWindows(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath, args=temp)
 	else
-		runPythonScriptOnMovieMacOs(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath)
+		sprintf temp, "--tempFolder=%s", pigPathToTempFolder
+		runPythonScriptOnMovieMacOs(pigPathToPythonInterpreter, pigPathToGetMetadata, moviePath, args=temp)
 	endif
 	// load and remove temp 
-	// pigLoadAndRemoveTempFolder(dirPath)
 	pigLoadAndRemoveTempFolder()
-	
 end
+
+
 
 // look into metadata and append info to notes
 function appendMetadata(wave movie)
