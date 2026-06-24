@@ -8,7 +8,7 @@
 // to avoid compilation conflicts
 // and to allow for anyone to look for the original fx, just in case
 
-// useful fxs to remember:
+// some useful fxs to remember:
 // getWavesDataFolder
 // nameOfWave
 // getDataFolder
@@ -18,6 +18,34 @@
 // numberByKey
 // itemsInList
 
+
+// check wether fpath in notes still exists there
+// if not, make a temporal copy and change in notes
+function checkMoviePath(wave movie)
+	string pathToMovie = stringByKey("fpath",note(movie),"=","\r")
+	string check = doesFileExist(pathToMovie)
+	// if not found
+	if (cmpstr(check,"found") != 0)
+		print "\ncouldn\'t find movie at its original location"
+		// make copy & change notes (in temp folder)
+		string movieName = stringByKey("fname",note(movie),"=","\r")
+		// if name not in notes, make a name
+		if (strlen(movieName) == 0)
+			movieName = nameOfWave(movie) + ".tiff"
+		endif
+		// make file
+		imageSave/t="tiff"/s/ds=16/o/p=tempFolder movie as movieName
+		// get metadata as this is lost in the new file
+		
+		// replace info in movie's notes
+		string info = note(movie)
+		string moviePath = specialDirPath("Temporary",0,0,0) + movieName
+		// note(movie) = replaceStringByKey("fpath", note(movie), moviePath, "=", "\r")
+		// note/k movie
+		// note movie, info
+		print "--> made a temporary copy and re-wrote notes"
+	endif
+end
 
 // abort if python interpreter hasn't been correctly defined
 function checkPythonInterpreter([variable stop])
@@ -69,7 +97,7 @@ function splitDeltaF(wave popwave, variable n_reps)
 	for (i=0; i<n_reps; i+=1)
 		duplicate/o/rmd=[i*rep_pnts, (i+1)*rep_pnts-1][] popwave, $(nameOfWave(popwave)+"_rep"+num2str(i))
 		// popdf((nameOfWave(popwave)+"_rep"+num2str(i)))
-		
+			
 		if (numpnts(splitDf) == 0)
 			duplicate/o $(nameOfWave(popwave)+"_rep"+num2str(i)+"_DF"), splitDf
 		else
@@ -155,7 +183,7 @@ function CopyScalingx(source, destination)
 end
 
 // same as imshow, but for 4 dims also
-// used claude to fix the problem of the slider bars
+// used claude to fix the problem of the slider bars on mac
 // (to adjust them according to the size of the window)
 function pigImshow()
 

@@ -590,7 +590,7 @@ end
 
 
 // 10.
-// this functions has 4 main parts:
+// this functions has 4 parts:
 // a) definitions and checks
 // b) run python script
 // c) load and remove temp files
@@ -646,9 +646,8 @@ function pigRunKS(wave movie [wave analysisWave])
 		anx = 1
 		// make stimulus for ks in python
 		// g:general text, m:terminator string, o:overwrites
-		string fdir = stringByKey("fdir",note(movie),"=","\r")
-		newPath/o/q anWavePath, fdir
-		save/g/m="\n"/dlim=","/p=anWavePath/o analysisWave as "anWave.txt"
+		// pigTemp = pathToTempFolder, but as symbolic path
+		save/g/m="\n"/dlim=","/p=pigTemp/o analysisWave as "anWave.txt"
 	endif
 	
 	// define arguments before runnning
@@ -700,6 +699,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	endif
 	
 	// load files into igor
+	// i'm not using the load&remove function, for specific differences
 	// this is a proper temp folder now, instead of same movieDirpath
 	print "temporal files at: " + pathToTempFolder
 	pigLoadFiles(dirpath=pathToTempFolder)

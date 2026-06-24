@@ -654,8 +654,9 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             if self.mk_videos:
                 # save a copy in desktop (to avoid permission issues)
-                fcopy = str(Path.gome()/"Desktop")
-                fcopy_path = f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
+                fcopy_dir = str(Path.home()/"Desktop")
+                fcopy_name = f'{self.fname}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
+                fcopy_path = os.path.join(fcopy_dir,fcopy_name)
                 tf.imwrite(fcopy_path, overlay)
                 self.overlay_plus_stimulus(overlay)
 
@@ -681,7 +682,13 @@ class KS_pipeline:
         
         fig, (ax_mov, ax_stim) = plt.subplots(2, 1, height_ratios=[4, 1])
         im = ax_mov.imshow(movie[0])
-        # ax_stim.plot(self.stimulus)
+        # make x axis for time bar
+        movie_secs = len(movie)/self.frameRate
+        ax_stim.set_xlim(0, movie_secs)
+        # every 10 seconds + last
+        ticks = np.append(np.arange(0, movie_secs, 10), movie_secs).astype(int)
+        ax_stim.set_xticks(ticks)
+        ax_stim.set_xlabel("Time (s)")
         ax_stim.plot(*self.stimulus2d)
         bar = ax_stim.axvline(0, color='r')
 
@@ -695,8 +702,10 @@ class KS_pipeline:
         ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
         # ani.save(f'{self.savepath}_overlay_st.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
         # save a copy in desktop folder
-        fcopy = str(Path.gome()/"Desktop")
-        ani.save(f'{fcopy}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.mp4', writer='ffmpeg', fps=int(self.frameRate), dpi=60)
+        fcopy_dir = str(Path.home()/"Desktop")
+        fcopy_name = f'{self.fname}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.mp4'
+        fcopy_path = os.path.join(fcopy_dir,fcopy_name)
+        ani.save(fcopy_path, writer='ffmpeg', fps=int(self.frameRate), dpi=60)
         plt.close()
     
 

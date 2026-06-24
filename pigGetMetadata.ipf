@@ -5,20 +5,9 @@
 // define path to script
 function pigDefinePathToGetMetadata()
 	// path to pig directory in user procedures
-	// string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
 	svar pigPath = root:Packages:pig:pigPathToPigFolder
-	string pathToGetMetadataIgor = pigPath + "get_metadata.py"
-	// make path to file
-	string platform = IgorInfo(2)
-	string pathToGetMetadata
-	if (CmpStr(platform, "Windows") == 0)
-		pathToGetMetadata = parseFilePath(5, pathToGetMetadataIgor, "\\", 0, 0)
-	else
-		pathToGetMetadata = parseFilePath(5, pathToGetMetadataIgor, "/", 0, 0)
-	endif
-	string/g root:Packages:pig:pigPathToGetMetadata = pathToGetMetadata
+	string/g root:Packages:pig:pigPathToGetMetadata = pigPath + "get_metadata.py"
 end
-
 
 
 // this function uses pig to retrieve full metadata

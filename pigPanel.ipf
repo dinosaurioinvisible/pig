@@ -7,7 +7,7 @@
 Window pigPanel(): Panel_pig
 
 	PauseUpdate; Silent 1	
-	// defining global variables
+	// global variables
 	NewDataFolder/o root:Packages:pig
 	variable/g root:Packages:pig:FOV=610
 	variable/g root:Packages:pig:alpha=0.05
@@ -16,16 +16,17 @@ Window pigPanel(): Panel_pig
 	variable/g root:Packages:pig:mkVideos=0
 	string/g root:Packages:pig:ccMovies=""
 	newDataFolder/o root:analysisWaves
-	// get path to python interpreter
-	pigDefinePythonInterpreterPath()
-	pigDefinePathToKS()
-	pigDefinePathToGetMetadata()
-	// define other useful paths (pig, temp, desktop)
+	// define other useful paths (pig, temp)
 	string pigPath = specialDirPath("Igor Pro User Files",0,0,0) + "User Procedures:pig:"
 	string/g root:Packages:pig:pigPathToPigFolder = renamePath_igor2sys(pigPath)
 	string pigTempFolder = specialDirPath("Temporary",0,0,0) + "pig:"
 	string/g root:Packages:pig:pigPathToTempFolder = renamePath_igor2sys(pigTempFolder)
 	newPath/c/o/q pigTemp, pigTempFolder
+	newPath/c/o/q tempFolder, specialDirPath("Temporary",0,0,0)
+	// get path to python interpreter
+	pigDefinePythonInterpreterPath()
+	pigDefinePathToKS()
+	pigDefinePathToGetMetadata()
 	
 	// main panel
 	// /w=(left, top, right, bottom)
