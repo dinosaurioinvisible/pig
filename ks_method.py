@@ -660,7 +660,7 @@ class KS_pipeline:
                 tf.imwrite(fcopy_path, overlay)
                 self.overlay_plus_stimulus(overlay)
 
-
+    # **
     # overlay + stimulus 
     # i'm making this more general, in case we want to use it 
     # fot other movies (reg, bc, etc)
