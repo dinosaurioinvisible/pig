@@ -180,6 +180,8 @@ function pigLoadMovie()
 	// check python interpreter
 	// it's necessary for getMetadata()
 	checkPythonInterpreter()
+	
+	// load movie
 	// in case the user is loading from inside another dir
 	setDataFolder root:
 	// load normally
@@ -193,75 +195,45 @@ function pigLoadMovie()
 	// replace spaces with underscores (to avoid failure at loading)
 	fname = ReplaceString(" ", fname, "_")
 	// create folder for movie and move loaded movie there
-	NewDataFolder/O root:$fname
+	newDataFolder/o root:$fname
 	string movieName = "root:" +fname+ ":" +fname
 	// if movie exists, overwrite
 	if (waveExists($movieName))
 		killwaves/z $movieName
 	endif
-	// move to its own folder
+	// move movie to its own folder
 	moveWave $s_filename, $movieName
+	// and now we move into folder
+	setDataFolder root:$fname
 	
-	// retrieve necessary info	
-	// this works with the older version of scan image only
-	// print s_info
-	string metadata = s_info
-	// this is to check access to metadata
-	// get info - to access note info: print note($"movieName")
-	variable zoomFactor = numberByKey("state.acq.zoomFactor",s_info,"=","\r")
-	// string expDate = stringByKey("state.internal.triggerTimeString",s_info,"=","\r")
-	variable msPerLine = numberByKey("state.acq.msPerLine",s_info,"=","\r")
-	variable frameRate = numberByKey("state.acq.frameRate",s_info,"=","\r")
-	variable angleFast = numberByKey("state.acq.scanAngleMultiplierFast",s_info,"=","\r")
-	variable angleSlow = numberByKey("state.acq.scanAngleMultiplierSlow",s_info,"=","\r")
+	// append file data to notes and later proccessing
+	note $movieName, "fdir="+s_path
+	note $movieName, "fname="+s_filename
+	note $movieName, "basename="+fname
+	string fpath = s_path+s_filename
+	note $movieName, "fpath="+fpath
+	note $movieName, ""
+	nvar fov = root:Packages:pig:FOV
+	note $movieName, "fov=" + num2str(fov)
 	
-	// if this fails (the access to the metadata)
-	// scaling would void the picture with nans
-	// safest option is to retrieve whatever info available and abort
-	// here I try to get the info using the getMetadata() function first
-	variable meta = 0
-	if (numtype(zoomFactor) == 2)
-		// for later check
-		meta = 1
-		// i'm defining this here anyway, for getMetadata()
-		note $movieName, "fdir="+s_path
-		note $movieName, "fname="+s_filename
-		note $movieName, "basename="+fname
-		string fpath = s_path+s_filename
-		note $movieName, "fpath="+fpath
-		note $movieName, ""
-		nvar fov = root:Packages:pig:FOV
-		note $movieName, "fov=" + num2str(fov)
-		// try to get metadata
-		print "\ncouldn\'t access metadata, trying with getMetadata()"
-		pigGetMetadata($movieName)
-		// move metadata from root: to movie folder
-		string cwdx = getDataFolder(1)
-		string metadataWaveDefault = cwdx + fname + "_metadata"
-		string metadataWave = movieName+"_metadata"
-		// if it exists, erase (otherwise yields error)
-		if (waveExists($metadataWave))
-			killwaves/z $metadataWave
-		endif
-		moveWave $metadataWaveDefault, $metadataWave
-		// try to extract info from it & append it to the notes
-		appendMetadata($movieName)
-		// now we need the values for scaling
-		string info = note($movieName)
-		// get data from same notes
-		zoomFactor = NumberByKey("zoomFactor", info, "=", "\r")
-		angleFast = NumberByKey("scanAngleMultiplierFast", info, "=", "\r")
-		angleSlow = NumberByKey("scanAngleMultiplierSlow", info, "=", "\r")
-		msPerLine = NumberByKey("msPerLine", info, "=", "\r")
-		frameRate = NumberByKey("frameRate", info, "=", "\r")
-		variable dt = 1/frameRate
-		// generally whatever the info available is, is not so relevant
-		// but i'm appending it anyway
-		note $movieName, metadata
-	endif
+	// get metadata (this uses python)
+	// it's a bit slower than directly doing on igor, but is safer
+	// because some data formats are not accessible from Igor
+	pigGetMetadata($movieName)
+	appendMetadata($movieName)
+	
+	// now we need the values for scaling
+	string info = note($movieName)
+	// get data from same notes
+	variable zoomFactor, angleFast, angleSlow, msPerLine, framerate, dt
+	zoomFactor = NumberByKey("zoomFactor", info, "=", "\r")
+	angleFast = NumberByKey("scanAngleMultiplierFast", info, "=", "\r")
+	angleSlow = NumberByKey("scanAngleMultiplierSlow", info, "=", "\r")
+	msPerLine = NumberByKey("msPerLine", info, "=", "\r")
+	frameRate = NumberByKey("frameRate", info, "=", "\r")
+	dt = 1/frameRate
 	
 	// get deltas to scale 
-	// not the same, but basically from apply header info (in LoadScanImage)
 	variable x_res,y_res
 	variable timePerLine = msPerLine/1000
 	nvar fov = root:Packages:pig:FOV
@@ -275,39 +247,6 @@ function pigLoadMovie()
 	z_res = timePerLine *  dimsize($movieName,1)
 	setscale /P z, 0, z_res,"s",$movieName
 	
-	// append info to notes
-	string filePath = s_path+s_filename
-	dt = 1/frameRate
-	// check if not already appended
-	// so metadata was taken using pig
-	if (meta == 0)
-		// note $movieName, "expDate="+expDate
-		nvar fov = root:Packages:pig:FOV
-		note $movieName, "fdir="+s_path
-		note $movieName, "fname="+s_filename
-		note $movieName, "basename="+fname
-		note $movieName, "fpath="+filePath
-		note $movieName, ""
-		note $movieName, "fov=" + num2str(fov)
-		note $movieName, "zoomFactor="+num2str(zoomFactor)
-		note $movieName, "scanAngleMultiplierFast="+num2str(angleFast)
-		note $movieName, "scanAngleMultiplierSlow="+num2str(angleSlow)
-		variable fovx = fov * angleFast / zoomFactor
-		variable fovy = fov * angleSlow / zoomFactor
-		fovx = fov * angleFast / zoomFactor
-		fovy = fov * angleSlow / zoomFactor
-		note $movieName, "fovZoom_x=" + num2str(fovx) 
-		note $movieName, "fovZoom_y=" + num2str(fovy)
-		note $movieName, "msPerLine="+num2str(msPerLine)
-		note $movieName, "frameRate="+num2str(frameRate)
-		note $movieName, "dt="+num2str(dt)
-		variable dur = dimSize($movieName,2)/2/frameRate
-		note $movieName, "duration="+num2str(dur)
-		note $movieName, ""
-		// append all info (in case it's needed)
-		note $movieName, metadata
-	endif
-	
 	// split channels (using fxs from LoadScanImage
 	variable nChannels = nChannelsFromHeaderx($movieName)
 	// in case there's no info in the header (so nChannels = nan)
@@ -316,22 +255,9 @@ function pigLoadMovie()
 		nChannels = 2
 	endif
 	splitChannelsx($movieName, nChannels=nChannels)
-
-	// move files to movie folder
-	variable i
-	string chName, chPath
-	for (i=0; i<nChannels; i+=1)
-		chName = fname+"_ch"+num2str(i+1)
-		chPath = movieName+"_ch"+num2str(i+1)
-		// if channel movie exists, erase (otherwise yields error)
-		if (waveExists($chPath))
-			killwaves/z $chPath
-		endif
-		moveWave $chName, $chPath
-	endFor
 	
 	// mk stimulus wave
-	pigWaveCh2lineRes($movieName)
+	pigWaveCh2lineRes2($(movieName+"_ch2"))
 	string cwd = getDataFolder(1)
 	string stimulusWaveDefault = cwd+"timewave"
 	string stimulusWaveCh2res = movieName+"_ch2stim"
@@ -341,11 +267,9 @@ function pigLoadMovie()
 	endif
 	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
 	// ch2res makes 1d wave, so has to be scaled in x
-	setscale /P x, 0, dt,"s",$stimulusWaveCh2res
+	setscale/p x, 0, dt,"s",$stimulusWaveCh2res
 	
-	// move to new folder in the data browser
-	setDataFolder "root:" + fname
-	print "\nloaded movie from: "+filePath
+	print "\nloaded movie from: "+fpath
 end
 
 
@@ -599,22 +523,15 @@ end
 function pigRunKS(wave movie [wave analysisWave])
 	
 	// first of all - check python interpreter
-	checkPythonInterpreter()
-	// define basic names
-	string platform = IgorInfo(2)
-	// path to python interpreter
+	checkPythonInterpreter(stop=1)
+	// path to python interpreter, KS.py & movie file
 	svar pigPathToPython = root:Packages:pig:pigPathToPythonInterpreter
-	// path to KS.py
 	svar pigPathToKS = root:Packages:pig:pigPathToKS
-	// get path to file
-	string pathToMovieIgor = stringByKey("fpath",note(movie),"=","\r")
-	string pathToMovie
-	if (CmpStr(platform, "Windows") == 0)
-		pathToMovie = parseFilePath(5, pathToMovieIgor,"\\",0,0)
-	else
-		pathToMovie = parseFilePath(5, pathToMovieIgor,"/",0,0)
-	endif
+	// this also checks whether movie exists outside igor
+	string pathToMovie = checkMoviePath(movie)
+	// string pathToMovie = renamePath_igor2sys(stringByKey("fpath",note(movie),"=","\r"))
 	// definitions for optional parameters
+	string platform = IgorInfo(2)
 	nvar fov = root:Packages:pig:FOV
 	nvar alpha = root:Packages:pig:alpha
 	nvar approxROIsize = root:Packages:pig:approxROIsize
@@ -861,12 +778,13 @@ function pigLoadAndRemoveTempFolder()
    	executeScriptText/z igorcmd
 		print s_value
 	endif
+	// check in windows, if it works, just remove this part
 	// remove
 	// string cmd
 	// string platform = IgorInfo(2)
 	// if (CmpStr(platform, "Windows") == 0)
 		// cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
-		// debugging now kkk
+		// debugging now
 		// print "pilhjsdf"
 		// print cmd
 		// executeScriptText/b/z cmd

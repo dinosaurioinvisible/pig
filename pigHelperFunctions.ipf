@@ -21,37 +21,77 @@
 
 // check wether fpath in notes still exists there
 // if not, make a temporal copy and change in notes
-function checkMoviePath(wave movie)
-	string pathToMovie = stringByKey("fpath",note(movie),"=","\r")
-	string check = doesFileExist(pathToMovie)
-	// if not found
-	if (cmpstr(check,"found") != 0)
-		print "\ncouldn\'t find movie at its original location"
-		// make copy & change notes (in temp folder)
-		string movieName = stringByKey("fname",note(movie),"=","\r")
-		// if name not in notes, make a name
-		if (strlen(movieName) == 0)
-			movieName = nameOfWave(movie) + ".tiff"
-		endif
-		// make file
-		imageSave/t="tiff"/s/ds=16/o/p=tempFolder movie as movieName
-		// get metadata as this is lost in the new file
-		
-		// replace info in movie's notes
-		string info = note(movie)
-		string moviePath = specialDirPath("Temporary",0,0,0) + movieName
-		// note(movie) = replaceStringByKey("fpath", note(movie), moviePath, "=", "\r")
-		// note/k movie
-		// note movie, info
-		print "--> made a temporary copy and re-wrote notes"
+// if stop: just check & abort; otherwise, create a temp copy
+function/s checkMoviePath(wave movie, [variable stop])
+	// optional stop of main function calling this one
+	variable stopExecution
+	if (paramIsDefault(stop) == 0 && stop > 0)
+		stopExecution = 1
+	else
+		stopExecution = 0
 	endif
+	string pathToMovieIgor = stringByKey("fpath",note(movie),"=","\r")
+	string pathToMovie = renamePath_igor2sys(pathToMovieIgor)
+	string isPath = doesFileExist(pathToMovie)
+	// if not found
+	if (cmpstr(isPath,"found") != 0)
+		print "\nmovie does not exist anymore at: " + pathToMovie
+		// optional abort
+		if (stopExecution == 1)
+			print "...abort"
+			abort
+		endif
+		// else, make copy of movie at temp
+		saveMovieWithMetadata(movie)
+		string movieName = parseFilePath(0, pathToMovieIgor, ":", 1, 0)
+		string altPath = specialDirPath("Temporary",0,0,0) + movieName
+		note movie, "altPath="+altPath
+		pathToMovie = renamePath_igor2sys(altPath)
+		print "--> made a temporary copy at: " + pathToMovie
+	endif
+	print pathToMovie
+	return pathToMovie	
+end
+
+
+// normally when exporting Igor movies, you lose the metadata
+// there are some cases in which these are important though
+function saveMovieWithMetadata(wave movie, [string savePath])
+	// get notes
+	string movieName = stringByKey("fname",note(movie),"=","\r")
+	string notes = note(movie)
+	// i'm leaving this here, coz in theory if too long it could fail
+	// print "length notes: " + num2str(strlen(notes))
+    
+	// create tag wave mirroring T_Tags format:
+	// 00 = tag.key, this is the index to open the metadata in python
+	// 01 = description (can be blank, is not written when exported)
+	// 02 = type (2=ASCII), 03 = notes length, 04 = notes
+	make/O/T/N=(1,5) tagWave
+	tagWave[0][0] = "111"
+	tagWave[0][1] = "igorWavedata"
+	tagWave[0][2] = "2"
+	tagWave[0][3] = num2str(strlen(notes))
+	tagWave[0][4] = notes
+    
+	// check savepath
+	if (paramIsDefault(savePath) == 0)
+		newPath/c/o/q exportPath, savePath
+		imageSave/T="TIFF"/DS=16/S/O/P=exportPath/WT=tagWave movie as movieName
+	else
+		// save with metadata as stack
+		// imageSave/T="TIFF"/O/S/DS=16/P=tempFolder/WT=tagWave movie as movieName
+		imageSave/T="TIFF"/DS=16/S/O/P=tempFolder/WT=tagWave movie as movieName
+	endif
+	// remove tagwave afterwards
+	killWaves/z tagWave
 end
 
 // abort if python interpreter hasn't been correctly defined
 function checkPythonInterpreter([variable stop])
 	// optional stop of main function calling this one
 	variable stopExecution
-	if (paramIsDefault(stop) > 0)
+	if (paramIsDefault(stop) == 0 && stop > 0)
 		stopExecution = 1
 	else
 		stopExecution = 0
@@ -84,7 +124,19 @@ function/s renamePath_igor2sys(string igorPath)
 	if (CmpStr(platform, "Windows") == 0)
 		path = parseFilePath(5, igorPath,"\\", 0, 0)
 	else
-		path = parseFilePath(5, igorPath, "/", 0, 0)
+		// path = parseFilePath(5, igorPath, "/", 0, 0)
+		// for macos, this function fails if path doesn't start with "macintosh hd"
+		// to be safe, i'm hardcoding the thing manually
+		if (cmpStr(igorpath[0,12],"Macintosh HD:") == 0)
+			// strip volume name (everything up to and including first ":")
+			variable firstColon = strsearch(igorPath, ":", 0)
+			path = "/" + ReplaceString(":", igorPath[firstColon+1, strlen(igorPath)-1], "/")
+			// path = ReplaceString(":", igorpath[0,strlen(igorpath)-1], "/")
+			// path = parseFilePath(5, igorPath, "/", 0, 0)
+		else
+			// path = "Macintosh HD/" + replaceString(":", igorpath[0,strlen(igorpath)-1], "/")
+			path = replaceString(":", igorpath[0,strlen(igorpath)-1], "/")
+		endif
 	endif
 	return path
 end
@@ -125,7 +177,7 @@ function nChannelsFromHeaderx(PicWave)
 	wave PicWave
 	string header = note(PicWave)
 	variable nChannels=0
-	nChannels = NumberByKey("state.acq.savingChannel1", Header, "=","\r") + NumberByKey("state.acq.savingChannel2", Header, "=","\r") + NumberByKey("state.acq.savingChannel3", Header, "=","\r") +  NumberByKey("state.acq.savingChannel4", Header, "=","\r")
+	nChannels = NumberByKey("ImageDescription.state.acq.savingChannel1", Header, "=","\r") + NumberByKey("ImageDescription.state.acq.savingChannel2", Header, "=","\r") + NumberByKey("ImageDescription.state.acq.savingChannel3", Header, "=","\r") +  NumberByKey("ImageDescription.state.acq.savingChannel4", Header, "=","\r")
 	return nChannels
 end
 

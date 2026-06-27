@@ -62,6 +62,16 @@ def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,):
             flat_data = flatten_dict(json_dict)
             for k,v in flat_data.items():
                 metadata[f'{tag.name}.{k}'] = v
+        # this is for the specific case of movies exported from igor
+        # to which metadata has been added when saving (not the usual case)
+        # i defined key=111 arbitrarily in Igor, so it's not universal
+        elif tag.name == '111':
+            # this igor is all in page[0]
+            paired_data = tag_data.split('\r')
+            for i in paired_data:
+                if '=' in i:
+                    k,v = i.split('=')
+                    metadata[k] = v.strip
         else:
             # the rest is very simple
             metadata[tag.name] = tag_data

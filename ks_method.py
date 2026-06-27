@@ -6,6 +6,7 @@ import platform
 import matplotlib.pyplot as plt
 from pathlib import Path
 from matplotlib.animation import FuncAnimation
+from check_libs import check_dependencies
 # general modules
 import numpy as np
 import tifffile as tf
@@ -125,12 +126,11 @@ class KS_pipeline:
         self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
         # check if route to temp folder has been defined
         if len(self.tempFolder) > 0 and os.path.isdir(self.tempFolder):
-            savedir = self.tempFolder
-            
+            savedir = self.tempFolder         
         else:
             # otherwise, use same dir of movie + python_output
             savedir = os.path.join(self.fdir,'python_output')
-            print(f'couldn\'t find temp folder at {self.tempFolder}, will try to save files at: {self.savepath}')
+            print(f'couldn\'t find temp folder ({self.tempFolder}). Will try to save files at: {savedir}')
         self.savepath = os.path.join(savedir,self.fname)
         if not os.path.isdir(savedir):
             os.mkdir(savedir)
@@ -140,12 +140,17 @@ class KS_pipeline:
     def get_metadata(self, movie, datatype):
         self.metadata = {}
         if datatype == 'ImageDescription':
-            info = movie.pages[0].tags['ImageDescription'].value.split('\r')
+            try:
+                info = movie.pages[0].tags['ImageDescription'].value.split('\r')
+            except:
+                info = movie.pages[0].tags['111'].value.split('\r')
+                datatype = "Igor_111"
         if datatype == 'Software':
             info = movie.pages[0].tags['Software'].value.split('\n')
         for i in info:
-            k,v = i.split('=')
-            self.metadata[k.strip()] = v.strip()
+            if '=' in i:
+                k,v = i.split('=')
+                self.metadata[k.strip()] = v.strip()
         # ImageDescription data is 'easier'
         if datatype == 'ImageDescription':
             self.frameRate = float(self.metadata["state.acq.frameRate"])
@@ -153,12 +158,26 @@ class KS_pipeline:
             self.scanAngleMultFast = float(self.metadata["state.acq.scanAngleMultiplierFast"])
             self.scanAngleMultSlow = float(self.metadata["state.acq.scanAngleMultiplierSlow"])
             # print("Field of view assumed to be 610, but do check this")
-        if datatype == 'Software':
+        elif datatype == 'Software':
             # Software metadata is more accurate, so no exactly 20hz, for example
             self.frameRate = round(float(self.metadata['SI.hRoiManager.scanFrameRate']))
             self.zoomFactor = float(self.metadata['SI.hRoiManager.scanZoomFactor'])
             self.scanAngleMultFast = float(self.metadata["SI.hRoiManager.scanAngleMultiplierFast"])
             self.scanAngleMultSlow = float(self.metadata["SI.hRoiManager.scanAngleMultiplierSlow"])
+        elif datatype == 'Igor_111':
+            # this is from Igor, so it can be any kind, not only imageDescription
+            try:
+                self.frameRate = float(self.metadata["ImageDescription.state.acq.frameRate"])
+                self.zoomFactor = float(self.metadata["ImageDescription.state.acq.zoomFactor"])
+                self.scanAngleMultFast = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierFast"])
+                self.scanAngleMultSlow = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierSlow"])
+            except:
+                self.frameRate = round(float(self.metadata['Software.SI.hRoiManager.scanFrameRate']))
+                self.zoomFactor = float(self.metadata['Software.SI.hRoiManager.scanZoomFactor'])
+                self.scanAngleMultFast = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierFast"])
+                self.scanAngleMultSlow = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierSlow"])
+        else:
+            print("\nMetadata type not recognized")
         self.dt = 1/self.frameRate
 
 
@@ -660,7 +679,6 @@ class KS_pipeline:
                 tf.imwrite(fcopy_path, overlay)
                 self.overlay_plus_stimulus(overlay)
 
-    # **
     # overlay + stimulus 
     # i'm making this more general, in case we want to use it 
     # fot other movies (reg, bc, etc)
@@ -816,6 +834,8 @@ if __name__ == "__main__":
         # can be changed from terminal
         if arg == '--not-igor':
             igor = False
+    # check if required libs are installed
+    check_dependencies()
     x = KS_pipeline(fpath=path_to_movie,
         fov=fov,
         alpha=alpha,

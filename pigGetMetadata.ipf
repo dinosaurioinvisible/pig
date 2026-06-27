@@ -12,6 +12,8 @@ end
 
 // this function uses pig to retrieve full metadata
 function pigGetMetadata(wave movie)
+	// check if movie exists, otherwise abort
+	checkMoviePath(movie, stop=1)
 	string platform = IgorInfo(2)
 	// get path to movie
 	string info = note(movie)
@@ -53,6 +55,9 @@ function appendMetadata(wave movie)
 	// zoom
 	variable zoomFactor = numberByKey("zoomFactor", info, "=", "\r")
 	// =2 means NaN or empty
+	if (numtype(zoomFactor)==2)
+   	zoomFactor = numberByKey("ImageDescription.state.acq.zoomFactor", allMetadata, "=", "\r")
+   endif
 	if (numtype(zoomFactor) == 2)
    	zoomFactor = numberByKey("Software.SI.hRoiManager.scanZoomFactor", allMetadata, "=", "\r")
    endif
@@ -63,6 +68,9 @@ function appendMetadata(wave movie)
 	// scanAngleMultiplierFast
 	variable angleFast = numberByKey("scanAngleMultiplierFast", info, "=", "\r")
 	if (numtype(angleFast) == 2) 
+   	angleFast = numberByKey("ImageDescription.state.acq.scanAngleMultiplierFast", allMetadata, "=", "\r")
+   endif
+	if (numtype(angleFast) == 2) 
    	angleFast = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierFast", allMetadata, "=", "\r")
    endif
    if (numtype(angleFast)==2)
@@ -70,9 +78,12 @@ function appendMetadata(wave movie)
 	endif
  	note movie, "scanAngleMultiplierFast=" + num2str(angleFast)
 	// scanAngleMultiplierSlow
-	variable angleslow = numberByKey("scanAngleMultiplierSlow", info, "=", "\r")
-	if (numtype(angleslow) == 2) 
-   	angleFast = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierSlow", allMetadata, "=", "\r")
+	variable angleSlow = numberByKey("scanAngleMultiplierSlow", info, "=", "\r")
+	if (numtype(angleSlow) == 2) 
+   	angleSlow = numberByKey("ImageDescription.state.acq.scanAngleMultiplierSlow", allMetadata, "=", "\r")
+   endif
+	if (numtype(angleSlow) == 2) 
+   	angleSlow = numberByKey("Software.SI.hRoiManager.scanAngleMultiplierSlow", allMetadata, "=", "\r")
    endif
    if (numtype(angleSlow)==2)
 		angleSlow = numberByKey("Artist.RoiGroups.imagingRoiGroup.rois.UserData.scanAngleMultiplierSlow", allMetadata, "=", "\r")
@@ -89,11 +100,17 @@ function appendMetadata(wave movie)
 	note movie, "fovZoom_x=" + num2str(fovx) 
 	note movie, "fovZoom_y=" + num2str(fovy)	
  	// msPerLine
- 	variable linePeriod = numberByKey("Software.SI.hRoiManager.linePeriod", allMetadata, "=", "\r")
-	variable msPerLine = linePeriod * 1000
+ 	variable msPerLine = numberByKey("ImageDescription.state.acq.msPerLine",allMetadata,"=","\r")
+ 	if (numType(msPerLine)==2)
+ 		variable linePeriod = numberByKey("Software.SI.hRoiManager.linePeriod", allMetadata, "=", "\r")
+		msPerLine = linePeriod * 1000
+	endif
 	note movie, "msPerLine=" + num2str(msPerLine)
 	// frameRate
 	variable frameRate = numberByKey("frameRate", info, "=", "\r")
+	if (numtype(frameRate) == 2)
+   	frameRate = numberByKey("ImageDescription.state.acq.frameRate", allMetadata, "=", "\r")
+   endif
 	if (numtype(frameRate) == 2)
    	frameRate = numberByKey("Software.SI.hRoiManager.scanFrameRate", allMetadata, "=", "\r")
    endif
@@ -108,5 +125,8 @@ function appendMetadata(wave movie)
 	variable duration = dimSize(movie,2)/2/frameRate
 	note movie, "duration="+num2str(duration)
 	note movie, ""
-
+	note movie, ""	
+	// generally whatever the remaining is not so relevant
+	// but i'm appending it anyway, as it may be
+	note movie, allMetadata
 end
