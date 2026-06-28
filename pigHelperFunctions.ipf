@@ -47,9 +47,8 @@ function/s checkMoviePath(wave movie, [variable stop])
 		string altPath = specialDirPath("Temporary",0,0,0) + movieName
 		note movie, "altPath="+altPath
 		pathToMovie = renamePath_igor2sys(altPath)
-		print "--> made a temporary copy at: " + pathToMovie
+		print "--> used temporary copy at: " + pathToMovie
 	endif
-	print pathToMovie
 	return pathToMovie	
 end
 
@@ -74,14 +73,17 @@ function saveMovieWithMetadata(wave movie, [string savePath])
 	tagWave[0][3] = num2str(strlen(notes))
 	tagWave[0][4] = notes
     
-	// check savepath
-	if (paramIsDefault(savePath) == 0)
-		newPath/c/o/q exportPath, savePath
-		imageSave/T="TIFF"/DS=16/S/O/P=exportPath/WT=tagWave movie as movieName
-	else
-		// save with metadata as stack
-		// imageSave/T="TIFF"/O/S/DS=16/P=tempFolder/WT=tagWave movie as movieName
-		imageSave/T="TIFF"/DS=16/S/O/P=tempFolder/WT=tagWave movie as movieName
+	// save if is not already saved
+	string movieTempPath = renamePath_igor2sys(specialDirPath("Temporary",0,0,0) + movieName)
+	string isTempFile = doesFileExist(movieTempPath)
+	if (cmpstr(isTempFile,"found") != 0)
+		// check savepath & save with metadata as stack
+		if (paramIsDefault(savePath) == 0)
+			newPath/c/o/q exportPath, savePath
+			imageSave/T="TIFF"/DS=16/S/O/P=exportPath/WT=tagWave movie as movieName
+		else
+			imageSave/T="TIFF"/DS=16/S/O/P=tempFolder/WT=tagWave movie as movieName
+		endif
 	endif
 	// remove tagwave afterwards
 	killWaves/z tagWave

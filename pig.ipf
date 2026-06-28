@@ -699,7 +699,7 @@ function pigRunKS(wave movie [wave analysisWave])
 		killwaves/z $stimulusWave
 	endif
 	// have to create a new wave to get rid of col1
-	variable nrows = Dimsize($stimulusWaveKS,0)
+	variable nrows = dimSize($stimulusWaveKS,0)
 	make/o/n=(nrows) $stimulusWave 
 	wave sti = $stimulusWave
 	wave stiKS = $stimulusWaveKS

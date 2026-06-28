@@ -190,7 +190,6 @@ class KS_pipeline:
         # this also applies to any arbitrary segmentation to analyse the data
         if self.analysisWave:
             # this is assuming the name of the file is this anWave.txt
-            # stimulus_txt = os.path.join(self.fdir,"stimulus.txt")
             aewave_txt = os.path.join(self.fdir,"anWave.txt")
             if os.path.isfile(aewave_txt):
                 with open(aewave_txt, "r") as f:

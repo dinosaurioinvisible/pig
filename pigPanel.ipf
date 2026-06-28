@@ -350,7 +350,7 @@ function button_runKS(ba) : ButtonControl
 			string expName, expWave
 			string cwd = getDataFolder(1)
 			// this removes all the ks processed movies from the list
-			string moviesInFolder = wavelist("!*_ch*",";","DIMS:3")
+			string moviesInFolder = wavelist("!*_reg*",";","DIMS:3")
 			prompt expName, "pick movie (in current data folder)", popup, moviesInFolder
 			// drop-down menu for type of analysis -- analysis wave
 			setDataFolder root:analysisWaves
