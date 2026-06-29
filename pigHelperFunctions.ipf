@@ -114,8 +114,15 @@ end
 // igor cannot handle aliases, and python locations normally are
 // returns a string: "found" or "not found"
 function/s doesFileExist(string filepath)
-	string cmd = "do shell script \"test -f  \'" + filepath + "\' && echo 'found' || echo 'not found'\""
-	executeScriptText/z cmd
+	string platform = IgorInfo(2)
+	if (CmpStr(platform, "Windows") == 0)
+		// on windows you need /b to pass the command directly to cmd (ommiting cmd.exe)
+		string cmd = "cmd.exe /c if exist \"" + filepath + "\" (echo found) else (echo not found)"
+		executeScriptText/b/z cmd
+	else
+		cmd = "do shell script \"test -f  \'" + filepath + "\' && echo 'found' || echo 'not found'\""
+		executeScriptText/z cmd
+	endif
 	return s_value
 end
 

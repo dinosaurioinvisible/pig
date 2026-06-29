@@ -156,7 +156,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 			Variable dval = sva.dval
 			String sval = sva.sval
 			
-			string/g root:Packages:pig:pigPathToPythonInterpreter = sval
+			// string/g root:Packages:pig:pigPathToPythonInterpreter = sval
 			
 			// TODO:
 			// make a function in a different .ipf for this
@@ -173,10 +173,14 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 			string pythonEnvironmentDir = pigPath
 			// check if python interpreter actually exists
 			string isFile = doesFileExist(pathToPython)
+			
 			if (cmpstr(isFile,"found") != 0)
-   	 		print "\n\tCannot find interpreter at that location - python path has not been saved"
-   	 		abort
+	   	 		print "\n\tCannot find interpreter at that location - python path has not been saved"
+   		 		abort
 			endif
+			
+			// if OK, save interpreter
+			string/g root:Packages:pig:pigPathToPythonInterpreter = sval
 			// check platform
 			string platform = IgorInfo(2)
 			if (CmpStr(platform, "Windows") != 0)
@@ -188,7 +192,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 				executeScriptText cmd
 				print "\npath to python saved at: "+pathToTxt
 			else
-				pathToTxt = parseFilePath(5, pigPythonPath_txt, "\\", 0, 0)
+				pathToTxt = parseFilePath(5, pigPythonPath_txt, "\\", 0, 0)		
 				executeScriptText "cmd.exe /c echo "+pathToPython+" >> \""+pathToTxt+"\""
 				print "\npath to python saved at: "+pathToTxt
 			endif
