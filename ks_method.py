@@ -671,11 +671,15 @@ class KS_pipeline:
         if self.igor:
             tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             if self.mk_videos:
+                # I commented out these lines, but i'm not removing them
+                # in case someone wants to use this functinoality
+                # (it saves a tiff version of the movie with the red overlayed circles, in TIFF)
+                # – it is useful to analayse the performance of the algorithm 
                 # save a copy in desktop (to avoid permission issues)
-                fcopy_dir = str(Path.home()/"Desktop")
-                fcopy_name = f'{self.fname}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
-                fcopy_path = os.path.join(fcopy_dir,fcopy_name)
-                tf.imwrite(fcopy_path, overlay)
+                # fcopy_dir = str(Path.home()/"Desktop")
+                # fcopy_name = f'{self.fname}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
+                # fcopy_path = os.path.join(fcopy_dir,fcopy_name)
+                # tf.imwrite(fcopy_path, overlay)
                 self.overlay_plus_stimulus(overlay)
 
     # overlay + stimulus 
@@ -696,8 +700,9 @@ class KS_pipeline:
             except:
                 print("\nffmpeg not found, skipping .mp4 movie creation")
                 return
-        
         fig, (ax_mov, ax_stim) = plt.subplots(2, 1, height_ratios=[4, 1])
+        title = f'{self.fname} - FoV={self.fov}, α={self.alpha}, ~ROIsize={self.synapseSize}, d={self.min_distance}'
+        fig.suptitle(title, fontsize=14)
         im = ax_mov.imshow(movie[0])
         # make x axis for time bar
         movie_secs = len(movie)/self.frameRate
