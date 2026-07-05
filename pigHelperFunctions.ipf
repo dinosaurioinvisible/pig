@@ -33,6 +33,8 @@ function/s checkMoviePath(wave movie, [variable stop])
 	string pathToMovieIgor = stringByKey("fpath",note(movie),"=","\r")
 	string pathToMovie = renamePath_igor2sys(pathToMovieIgor)
 	string isPath = doesFileExist(pathToMovie)
+	print pathToMovieIgor
+	print pathToMovie
 	// if not found
 	if (cmpstr(isPath,"found") != 0)
 		print "\nmovie does not exist anymore at: " + pathToMovie
@@ -110,7 +112,6 @@ function checkPythonInterpreter([variable stop])
 	endif
 end
 
-// check if file exists (including aliases)
 // igor cannot handle aliases, and python locations normally are
 // returns a string: "found" or "not found"
 function/s doesFileExist(string filepath)
@@ -131,20 +132,23 @@ function/s renamePath_igor2sys(string igorPath)
 	string path
 	string platform = IgorInfo(2)
 	if (CmpStr(platform, "Windows") == 0)
-		path = parseFilePath(5, igorPath,"\\", 0, 0)
+		path = ParseFilePath(5, igorPath, "\\", 0, 0)
 	else
-		// path = parseFilePath(5, igorPath, "/", 0, 0)
-		// for macos, this function fails if path doesn't start with "macintosh hd"
-		// to be safe, i'm hardcoding the thing manually
-		if (cmpStr(igorpath[0,12],"Macintosh HD:") == 0)
-			// strip volume name (everything up to and including first ":")
-			variable firstColon = strsearch(igorPath, ":", 0)
-			path = "/" + ReplaceString(":", igorPath[firstColon+1, strlen(igorPath)-1], "/")
-			// path = ReplaceString(":", igorpath[0,strlen(igorpath)-1], "/")
-			// path = parseFilePath(5, igorPath, "/", 0, 0)
+		// already unix style
+		if (CmpStr(igorPath[0], "/") == 0)
+			path = igorPath
 		else
-			// path = "Macintosh HD/" + replaceString(":", igorpath[0,strlen(igorpath)-1], "/")
-			path = replaceString(":", igorpath[0,strlen(igorpath)-1], "/")
+			// path = parseFilePath(5, igorPath, "/", 0, 0)
+			// for macos, this function fails if path doesn't start with "macintosh hd"
+			// to be safe, i'm hardcoding the thing manually
+			variable firstColonPos = strsearch(igorPath, ":", 0)
+			string volumeName = igorPath[0, firstColonPos-1]
+			string restOfPath = ReplaceString(":", igorPath[firstColonPos+1, strlen(igorPath)-1], "/")
+			if (CmpStr(volumeName, "Macintosh HD") == 0)
+				path = "/" + restOfPath
+			else
+				path = "/Volumes/" + volumeName + "/" + restOfPath
+			endif
 		endif
 	endif
 	return path
