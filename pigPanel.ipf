@@ -72,7 +72,6 @@ Window pigPanel(): Panel_pig
 	Button runKS, pos={290,77}, size={75,20}, proc=button_runKS, title="Run KS"
 	Button runKS, fColor=(16191,18504,18761), fstyle=1
 	// ks: save -- make overlay & overlay + input movies
-	// checkBox mkVideos, pos={320,80}, size={10,20}, proc=pigMakeVideos, title="Save"
 	checkBox mkVideos, pos={300,15}, size={10,20}, proc=pigMakeVideos, title="Save"
 	checkBox mkVideos, help={"output overlay & overlay + stimulus videos"}, fSize=12, fStyle=1
 	checkBox mkVideos, fsize=12, side=0, value=0, fcolor = (65535,65535,65535)
@@ -172,13 +171,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 			string pathToPython = sval
 			string pythonEnvironmentDir = pigPath
 			// check if python interpreter actually exists
-			string isFile = doesFileExist(pathToPython)
-			
-			if (cmpstr(isFile,"found") != 0)
-	   	 		print "\n\tCannot find interpreter at that location - python path has not been saved"
-   		 		abort
-			endif
-			
+			checkPythonInterpreter(stop=1)
 			// if OK, save interpreter
 			string/g root:Packages:pig:pigPathToPythonInterpreter = sval
 			// check platform
@@ -193,7 +186,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 				print "\npath to python saved at: "+pathToTxt
 			else
 				pathToTxt = parseFilePath(5, pigPythonPath_txt, "\\", 0, 0)		
-				executeScriptText "cmd.exe /c echo "+pathToPython+" >> \""+pathToTxt+"\""
+				executeScriptText/b/z "cmd.exe /c echo "+pathToPython+" >> \""+pathToTxt+"\""
 				print "\npath to python saved at: "+pathToTxt
 			endif
 			

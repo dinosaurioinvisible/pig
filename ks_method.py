@@ -89,7 +89,7 @@ class KS_pipeline:
         # check for concatenation
         if len(self.concat) > 0:
             if platform.system() == 'Windows':
-                movie_paths = ['C:'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
+                movie_paths = [mp[0]+':'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
             elif platform.system() == 'Darwin':
                 movie_paths = [mp for mp in self.concat[1:-1].replace(":","/").replace("Macintosh HD","").split(",")]
             else:
@@ -829,6 +829,7 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
+            # import pdb; pdb.set_trace()
         if arg.startswith('--tempFolder'):
             tempFolder = str(arg.split('=')[1])
         if arg.startswith('--anwave'):

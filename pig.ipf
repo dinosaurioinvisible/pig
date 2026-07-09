@@ -572,15 +572,16 @@ function pigRunKS(wave movie [wave analysisWave])
 	// check platform
 	if (CmpStr(platform, "Windows") == 0)
 		// base optional arguments for running ks
-   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder
-   	// mk videos opt
-    	if (mkVideos == 1)
-       	ks_args += " --mk-videos"
-    	endif
+	   	sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder
     	// if concatenated movies (multiload)
     	if (ccx > -1)
 	    	string ccList = stringByKey(bn,ccMovies,"=",";")
-       	ks_args += " --concat=" + ccList
+	    	// sprintf ks_args, "--fov=%s --alpha=%s --ROIsize=%s --minDist=%s --tempFolder=%s --concat=%s", num2str(fov), num2str(alpha), num2str(approxROIsize), num2str(minDist), pathToTempFolder, ccList
+       	ks_args += " \"--concat=" + ccList +"\""
+    	endif
+    	// mk videos opt
+    	if (mkVideos == 1)
+       	ks_args += " --mk-videos"
     	endif
     	// if analysis wave
     	if (anx == 1)

@@ -124,7 +124,7 @@ function/s doesFileExist(string filepath)
 		cmd = "do shell script \"test -f  \'" + filepath + "\' && echo 'found' || echo 'not found'\""
 		executeScriptText/z cmd
 	endif
-	return s_value
+	return trimString(s_value)
 end
 
 // change igor path route name into system naming convention
