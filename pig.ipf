@@ -447,11 +447,17 @@ function pigMultiLoad()
 	ch2stimWave = ch2stimWave / 1000000
 		
 	// change name back to ch2 (remove the 'cc' from concat ch2s)
-	rename $movName, $basename
-	string respName0 = basename + "_ch1"
+	string multiName0 = basename + "_" + num2str(nfiles) + "movs"
+	// rename $movName, $basename
+	rename $movName, $multiName0
+	// string respName0 = basename + "_ch1"
+	string respName0 = multiname0 + "_ch1"
 	rename $respName, $respName0
-	string stimName0 = basename + "_ch2"
+	// string stimName0 = basename + "_ch2"
+	string stimName0 = multiname0 + "_ch2"
 	rename $stimName, $stimName0
+	// change name to main movie
+	
 end
 
 
@@ -779,23 +785,6 @@ function pigLoadAndRemoveTempFolder()
    	executeScriptText/z igorcmd
 		print s_value
 	endif
-	// check in windows, if it works, just remove this part
-	// remove
-	// string cmd
-	// string platform = IgorInfo(2)
-	// if (CmpStr(platform, "Windows") == 0)
-		// cmd = "cmd.exe /c rmdir /s /q \""+pathToTempFolder+"\""
-		// debugging now
-		// print "pilhjsdf"
-		// print cmd
-		// executeScriptText/b/z cmd
-		// print s_value
-	// else
-		// cmd = "do shell script \"rm -rf \'" + pathToTempFolder + "\'\""
-		// executeScriptText/b/z cmd
-		// print s_value
-	// endif
-	// print "removed temporal files from: "+pathToTempFolder
 end
 
 
