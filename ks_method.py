@@ -191,10 +191,15 @@ class KS_pipeline:
         if self.analysisWave:
             # this is assuming the name of the file is this anWave.txt
             aewave_txt = os.path.join(self.fdir,"anWave.txt")
-            if os.path.isfile(aewave_txt):
-                with open(aewave_txt, "r") as f:
-                    awave = f.read()
-                self.stimulus = np.array(awave.split('\n')[:-1], dtype=int)
+            if not os.path.isfile(aewave_txt):
+                aewave_txt = os.path.join(self.tempFolder,"anWave.txt")
+            # if is not in fdir or in temp, then raise error
+            if not os.path.isfile(aewave_txt):
+                raise FileNotFoundError("Couldn't find anWave.txt file")
+            with open(aewave_txt, "r") as f:
+                awave = f.read()
+            # self.stimulus = np.array(awave.split('\n')[:-1], dtype=int)
+            self.stimulus = np.array(awave.splitlines(), dtype=int)
         else:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
@@ -827,7 +832,6 @@ if __name__ == "__main__":
             synapse_size = float(arg.split('=')[1])
         if arg.startswith('--concat'):
             concat = str(arg.split('=')[1])
-            # import pdb; pdb.set_trace()
         if arg.startswith('--tempFolder'):
             tempFolder = str(arg.split('=')[1])
         if arg.startswith('--anwave'):
