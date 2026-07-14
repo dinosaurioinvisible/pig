@@ -44,12 +44,12 @@ function makeZapWindow()
 	nvar onROI = root:Packages:pig:zap_onROI
 	wave wx = $wn
 	wave zx = $zn
-	// Panel	
+	// panel	dimensions
 	nvar left = root:Packages:pig:zap_left
 	nvar top = root:Packages:pig:zap_top
 	nvar right = root:Packages:pig:zap_right
 	nvar bottom = root:Packages:pig:zap_bottom
-	//Display/K=1/W=(100,0,800,400)/N=roiThingy zx, wx[][onROI] as "Bad ROI GUI"
+	// display
 	Display/K=1/W=(left,top,right,bottom)/N=roiThingy zx, wx[][onROI] as "Bad ROI GUI"
 	ModifyGraph rgb($zn)=(0,0,0)
 	ModifyGraph margin(bottom)=100
@@ -57,7 +57,7 @@ function makeZapWindow()
 	// display current ROI number
 	ValDisplay whichROI title="ROI:", value=#"root:Packages:pig:zap_onROI"
 	ValDisplay totalROIs title="Total:", value=#"root:Packages:pig:zap_nROIs"
-	// Buttons
+	// good/bad buttons
 	Button goodRoiButton, proc=goodButton, title="Good"
 	Button badRoiButton, proc=badButton, title="Bad"	
 end
@@ -143,13 +143,30 @@ function makeGoodROIsFiles()
 	copyScales $wn, $x
 	setscale/p y, 0,  1, "", $x
 	note $x, note($wn)
+	
 	// make new masks
-	string masksInFolder = WaveList("*mask", ";", "")
+	string masksInFolder = waveList("*mask", ";", "")
 	for (i = 0; i < itemsInList(masksInFolder); i += 1)
 		string maskName = StringFromList(i, masksInFolder)
 		wave maskWave = $maskName
 		makeNewROIMask(maskWave, goodROIs)
 	endfor
+	// make new list (assuming 1 _synapse_data file in folder)
+	string synapsesName = waveList("*synapses_data", ";", "")
+	synapsesName = synapsesName[0, strsearch(synapsesName, ";", 0)-1]
+	wave synapsesData = $synapsesName
+	makeNewSynapsesData(synapsesData, goodROIs)
+	// make new synapses_map image (this uses python)
+	string backgroundImageName = waveList("*_deltaf", ";", "")
+	wave backgroundImage = $(backgroundImageName[0, strsearch(backgroundImageName, ";", 0)-1])
+	string goodSynapsesName = waveList("*synapses_data_good", ";", "DIMS:2")
+	wave goodSynapses = $(goodSynapsesName[0, strsearch(goodSynapsesName, ";", 0)-1])
+	// this is necessary to avoid Igor crashing, in case the files are not there
+	if (WaveExists(backgroundImage) == 0 || WaveExists(goodSynapses) == 0)
+		print "could not find background image or synapses data"
+ 	   abort
+	endif
+	newSynapsesMap(backgroundImage, goodSynapses)
 end
 
 function makeNewROIMask(wave ROImask, string goodROIs)
@@ -170,6 +187,62 @@ function makeNewROIMask(wave ROImask, string goodROIs)
 	endfor
 end
 
+function makeNewSynapsesData(wave synapsesData, string goodROIs)
+	// make a new table size=good
+	variable nrois = itemsInList(goodROIs)
+	string tableName = nameOfWave(synapsesData) + "_good"
+	make/o/n=(nrois, 6) $tableName
+	wave goodSynapsesData = $tableName
+	// copy column labels
+	variable j
+	for (j = 0; j < 6; j += 1)
+		setDimLabel 1, j, $getDimLabel(synapsesData, 1, j), goodSynapsesData
+	endfor
+	// copy good data
+	variable i
+	for (i = 0; i < nrois; i += 1)
+		variable row = str2num(stringFromList(i, goodROIs))
+		// save data from previous table (saves old index)
+		goodSynapsesData[i][0,5] = synapsesdata[row][q]
+	endfor
+end
+
+function newSynapsesMap(wave image, wave synapsesData)
+	string basename = stringByKey("basename", note(image), "=", "\r")
+	// save image as TIFF & synapses data as CSV
+	imageSave/T="TIFF"/O/P=pigTemp image as basename + "_background.tif"
+	save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
+	// imageSave/T="TIFF"/O/P=desktop image as basename + "_background.tif"
+	// save/G/M="\n"/DLIM=","/O/P=desktop synapsesData as basename + "_synapses.csv"
+	// basic info
+	string platform = IgorInfo(2)
+	string igorcmd
+	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+	svar pathToPython = root:Packages:pig:pigPathToPythonInterpreter
+	svar pathToPigPlots = root:Packages:pig:pigPathToPigPlots
+	// define arguments
+	string temp
+	sprintf temp, "--tempFolder='%s'", pathToTempFolder
+	// sprintf temp, "--tempFolder='%s'", renamePath_igor2sys(specialDirPath("Desktop",0,0,0))
+	nvar roisize = root:Packages:pig:approxROIsize
+	string synMapName = waveList("*synapses_map", ";", "")
+	synMapName = synMapName[0, strsearch(synMapName, ";", 0)-1]
+	string args = temp + " --roiRadius=" + num2str(roisize) + " --saveName=" + synMapName
+	// run in python
+	if (CmpStr(platform, "Windows") == 0)
+		runPythonScriptOnWindows(pathToPython, pathToPigPlots, args=args)
+	else
+		runPythonScriptOnMacOs(pathToPython, pathToPigPlots, args=args)
+	endif
+	// load and remove temp 
+	pigLoadAndRemoveTempFolder()
+	// scale
+	string goodSynMapName = waveList("*synapses_map_good", ";", "")
+	wave goodSynapsesMap = $(goodSynMapName[0, strsearch(goodSynMapName, ";", 0)-1])
+	// copyscales $synMapName, goodSynapsesMap
+end
+
+
 
 // Patricio 9.3.21
-// fernando 5/26
+// fernando 6/26

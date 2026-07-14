@@ -9,7 +9,7 @@ import sys
 def check_dependencies():
     # required packages for pig: install name : import name
     pig_packages = {"numpy":"numpy", "scipy":"scipy", "matplotlib":"matplotlib", "pandas":"pandas",
-        "tifffile":"tifffile", "scikit-image":"skimage", "opencv-python":"cv2", "bokeh":"bokeh"}
+        "tifffile":"tifffile", "scikit-image":"skimage", "opencv-python":"cv2"}
     missingLibs = []
     # install name is the one you use for pip install etc
     ## import name is the one here

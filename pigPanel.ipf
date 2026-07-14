@@ -23,9 +23,10 @@ Window pigPanel(): Panel_pig
 	string/g root:Packages:pig:pigPathToTempFolder = renamePath_igor2sys(pigTempFolder)
 	newPath/c/o/q pigTemp, pigTempFolder
 	newPath/c/o/q tempFolder, specialDirPath("Temporary",0,0,0)
+	newPath/c/o/q desktop, specialDirPath("Desktop",0,0,0)
 	// get path to python interpreter
 	pigDefinePythonInterpreterPath()
-	pigDefinePathToKS()
+	pigDefinePathToPythonScripts()
 	pigDefinePathToGetMetadata()
 	
 	// main panel

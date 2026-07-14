@@ -431,7 +431,7 @@ class KS_pipeline:
 
     # TODO: is percentile the best threshold abs?
     # wouldn't that be threshold rel?
-    # ΔF map + peak detection
+    # ΔF/F map + peak detection
     def mk_deltaf_map(self):
         baseline_mean = self.movie[self.baseline_idxs].mean(axis=0)
         activity_mean = self.movie[self.activity_idxs].mean(axis=0)
@@ -443,8 +443,6 @@ class KS_pipeline:
                             min_distance=self.min_distance,
                             threshold_abs=threshold_abs,
                             exclude_border=self.edge_margin)
-        if self.igor:
-            tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map)
 
 
     # KS between ROIs (baseline vs activity)
@@ -610,18 +608,17 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
 
 
-    # imshow with sorted synapses
-    # TODO: sorted by p-values
-    # should they be ordered by ∆f/f?
-    # TODO: what th_vmin & th_vmax do?
     # TODO: kwargs to scatter
-    # TODO: why deltaf_map? (I don't exactly remember now)
+    # th_vmin & th_vmax are the percentiles defining contrast for imshow
+    # (to avoid 1 or 2 very bright pixels to mess up the scale)
+    # imshow with sorted synapses
     def plot_synapses(self, th_vmin=5, th_vmax=99):
         vmin = np.percentile(self.deltaf_map, th_vmin)
         vmax = np.percentile(self.deltaf_map, th_vmax)
         plt.imshow(self.deltaf_map, cmap='gray', vmin=vmin, vmax=vmax)
-        # plt.title(f"Detected Synapses (n={len(self.synapses)})")
         plt.axis('off')
+        # if self.igor:
+        #     plt.savefig(f'{self.savepath}_deltaf', dpi=100, bbox_inches='tight', pad_inches=0)
         # plot synapses
         for ei,(sy,sx) in enumerate(self.synapses):
             # s: typographic points ** 2 & typographic points = 1/72 inches.
@@ -636,6 +633,7 @@ class KS_pipeline:
             # remove all margins
             plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
             plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
+            tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map.astype(np.float32))
         else:
             plt.show()
 

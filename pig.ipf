@@ -17,19 +17,29 @@
 
 // ~ index
 // 0. brief comment
+
+// general functions to run python
 // 1. runCommandOnWindowsCmd
 // 2. runCommandOnMacosShell 
-// 3. runPythonScriptOnMovieWindows
-// 4. runPythonScriptOnMovieMacOs
-// 5. pigDefinePythonInterpreterPath
-// 6. pigDefinePathToKS
-// 7. pigLoadMovie
-// 8. pigMultiLoad
-// 9. pigLoadAnalysisWave
-// 10. pigRunKS 
-// 11. pigSelectPythonScript
-// 12. pigLoadAndRemoveTempFolder
-// 13. pigRunPythonScriptOnMovie 
+// 3. runPythonScriptOnWindows
+// 4. runPythonScriptOnMacOs
+// 5. runPythonScriptOnMovieWindows
+// 6. runPythonScriptOnMovieMacOs
+
+// init functions
+// 7. pigDefinePythonInterpreterPath
+// 8. pigDefinePathToPythonScripts
+
+// different kinds of loading fxs
+// 9. pigLoadMovie
+// 10. pigMultiLoad
+// 11. pigLoadAnalysisWave
+// 12. pigSelectPythonScript
+// 13. pigLoadAndRemoveTempFolder
+
+// more complex running functions
+// 14. pigRunKS 
+// 15. pigRunPythonScriptOnMovie 
 
 
 // 0.
@@ -40,8 +50,7 @@
 // that path (if exists) is loaded as a global variable
 // every time pig is initialized
 // there are hardcoded paths to some python functions as well:
-// ks_method.py & getMetadata.py
-// if necessary, these can be changed from the pigPanel.ipf script
+// ks_method.py, getMetadata.py & pig_plots.py
 
 
 // 1.
@@ -64,6 +73,47 @@ end
 
 
 // 3.
+// runs a python script using windows cmd
+function runPythonScriptOnWindows(string path_to_python, string path_to_python_script, [string args])
+	string igorcmd
+	if (paramIsDefault(args) == 0)
+        igorcmd = "\"" + path_to_python + "\" \"" + path_to_python_script + "\" " + args
+    else
+        igorcmd = "\"" + path_to_python + "\" \"" + path_to_python_script + "\""
+    endif
+	// you may want to comment out these 2 lines
+	print "\nwindows cmd command:"
+	print igorcmd
+	executeScriptText/b/z igorcmd
+	// s_value actually returns eventual errors in execution, so is better not to comment this out
+	print "s_value:"
+   print s_value
+end
+
+
+// 4.
+// on mac this can be a pain, mostly because of the "do shell script"
+// seemiingly you can do without it, but it can get quite confusing
+function runPythonScriptOnMacOs(string path_to_python, string path_to_python_script, [string args])
+	string igorcmd
+	if (paramIsDefault(args) == 0)
+        igorcmd = "do shell script \"'" + path_to_python + "' '" + path_to_python_script + "' " + args + "\""
+    else
+        igorcmd = "do shell script \"'" + path_to_python + "' '" + path_to_python_script + "'\""
+    endif
+	// for debugging only
+	// string igorcmd
+	// sprintf igorcmd, "do shell script \"%s %s %s\"", path_to_python, path_to_python_script, path_to_movie
+	print "\nshell command:"
+	print igorcmd
+   executeScriptText/z igorcmd
+   // do not comment this out, it shows statements coming from python (including errors)
+   print "s_value:"
+   print s_value
+end
+
+
+// 5.
 // runs a python script into a movie using windows cmd
 function runPythonScriptOnMovieWindows(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
 	string igorcmd
@@ -82,9 +132,8 @@ function runPythonScriptOnMovieWindows(string path_to_python, string path_to_pyt
 end
 
 
-// 4.
-// on mac this can be a pain, mostly because of the "do shell script"
-// you can do without it, but it can get quite confusing
+// 6.
+// again: on mac this can be a pain, mostly because of the "do shell script"
 function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_python_script, string path_to_movie, [string args])
 	string igorcmd
 	if (paramIsDefault(args) == 0)
@@ -106,7 +155,10 @@ end
 
 
 
-// 5.
+////////// 7 & 8 are automatically run at start
+
+
+// 7.
 // look up for txt with python interpreter in default txt, otherwise create one
 function pigDefinePythonInterpreterPath()
 	// define path to pig directory in users procedures
@@ -155,25 +207,34 @@ end
 
 
 
-// 6.
-function pigDefinePathToKS()
+// 8.
+function pigDefinePathToPythonScripts()
 	// path to pig directory in users procedures
 	string pigPath = SpecialDirPath("Igor Pro User Files", 0, 0, 0) + "User Procedures:Pig:"
 	// search for txt file with location of python interpreter in pig folder
 	string pathToKSIgor = pigPath + "ks_method.py"
+	string pathToPigPlotsIgor = pigPath + "pig_plots.py"
 	string platform = IgorInfo(2)
-	string pathToKS
+	string pathToKS, pathToPigPlots
 	if (CmpStr(platform, "Windows") != 0)
 		pathToKS = parseFilePath(5, pathToKSIgor, "/", 0, 0)
+		pathToPigPlots = parseFilePath(5, pathToPigPlotsIgor, "/", 0, 0)
 	else
 		pathToKS = parseFilePath(5, pathToKSIgor, "\\", 0, 0)
+		pathToPigPlots = parseFilePath(5, pathToPigPlotsIgor, "\\", 0, 0)
 	endif
 	string/g root:Packages:pig:pigPathToKS = pathToKS
+	string/g root:Packages:pig:pigPathToPigPlots = pathToPigPlots
 end
 
 
 
-// 7.                                      
+
+
+///////////// 9 - 13 are basically loading functions 
+
+
+// 9.                                      
 // load movie
 function pigLoadMovie()
 	
@@ -274,7 +335,7 @@ end
 
 
 
-// 8. 
+// 10. 
 // load multiple movies
 function pigMultiLoad()
 	
@@ -461,7 +522,7 @@ function pigMultiLoad()
 end
 
 
-// 9.
+// 11.
 // Load experiment wave - for stimulus/analysis wave
 // string expWaves = pigLoadFiles(filters=".ibw;.txt",returnOnly=1,mkFolder="analysisWaves")
 function pigLoadAnalysisWave()
@@ -518,8 +579,73 @@ function pigLoadAnalysisWave()
 end
 
 
+// 12.
+// to load python outputs and then remove temporal folders
+// function pigLoadAndRemoveTempFolder(string pathToTempFolder)
+function pigLoadAndRemoveTempFolder()
+	// quick check
+	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+	// print "\npathToTempFolder: " + pathToTempFolder
+	if (strlen(pathToTempFolder) == 0)
+		print("\nnull path\n")
+		abort
+	endif
+	// load
+	pigLoadFiles(dirpath=pathToTempFolder)
+	// print "loaded temporal files at: "+pathToTempFolder
+	// remove
+	string platform = IgorInfo(2)
+	// print "removing temporal files from: " + pathToTempFolder
+	if (CmpStr(platform, "Windows") == 0)
+		executeScriptText/b/z "cmd.exe /c del /q " + pathToTempFolder + "\\*.*"
+	else
+		string igorcmd = "do shell script \"rm -rf '" + pathToTempFolder + "'*\""
+   	executeScriptText/z igorcmd
+		print s_value
+	endif
+end
 
-// 10.
+
+// 13.
+// select python script
+function pigSelectPythonScript()
+	// d: dialog, r: read only
+	string filter_script = ".py"
+	string message_script = "select python script"
+	Open/d/r/f=filter_script/m=message_script refNum
+	// print whether current script is loaded or not
+	if (cmpstr(s_filename,"") == 0)
+		print "\n\tno .py file selected"
+		svar pigPathToScript
+		if (numtype(strlen(pigPathToScript)) == 2)
+			print "\tno script chosen yet"
+		else
+			print "\tcurrent python script: "+pigPathToScript
+		endif
+		abort 
+	endif
+	string path_to_python_script = s_fileName
+	//for debugging
+	//print path_to_python_script
+	//mode 5 is for turning igor spaths into unix/windows type paths
+	string platform = IgorInfo(2)
+	if (CmpStr(platform, "Windows") == 0)
+		path_to_python_script = parseFilePath(5,path_to_python_script,"\\",0,0)
+	else
+		path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
+	endif
+	string/g root:Packages:pig:pigPathToScript = path_to_python_script
+	print "\n\tselected python script at: "+path_to_python_script
+end
+
+
+
+
+//////////// 14 & 15 are more complex cases of 1-6 fxs
+
+
+
+// 14.
 // this functions has 4 parts:
 // a) definitions and checks
 // b) run python script
@@ -690,12 +816,17 @@ function pigRunKS(wave movie [wave analysisWave])
 	// for these, time goes in the x axis
 	// also, for traces we want to have the metadata
 	string wx_dff = wx + "_dff_traces"
-	string wx_info = note(movie)
-	note $wx_dff, wx_info
 	string wx_gas = wx + "_gs_amps"
 	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
 	setscale/p x, 0,  dt, "s", $wx_dff
 	setscale/p x, 0,  dt, "s", $wx_gas
+	// copy notes in files that may be used later
+	string wx_info = note(movie)
+	note $wx, wx_info
+	note $wx_df, wx_info
+	note $wx_pm, wx_info
+	note $wx_rm, wx_info
+	note $wx_dff, wx_info
 	
 	// redimension stimulus wave from python
 	string stimulusWaveKS = cwdir + basename +"_stimulus"
@@ -726,77 +857,18 @@ end
 
 
 
-// 11.
-// select python script
-function pigSelectPythonScript()
-	// d: dialog, r: read only
-	string filter_script = ".py"
-	string message_script = "select python script"
-	Open/d/r/f=filter_script/m=message_script refNum
-	// print whether current script is loaded or not
-	if (cmpstr(s_filename,"") == 0)
-		print "\n\tno .py file selected"
-		svar pigPathToScript
-		if (numtype(strlen(pigPathToScript)) == 2)
-			print "\tno script chosen yet"
-		else
-			print "\tcurrent python script: "+pigPathToScript
-		endif
-		abort 
-	endif
-	string path_to_python_script = s_fileName
-	//for debugging
-	//print path_to_python_script
-	//mode 5 is for turning igor spaths into unix/windows type paths
-	string platform = IgorInfo(2)
-	if (CmpStr(platform, "Windows") == 0)
-		path_to_python_script = parseFilePath(5,path_to_python_script,"\\",0,0)
-	else
-		path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
-	endif
-	string/g root:Packages:pig:pigPathToScript = path_to_python_script
-	print "\n\tselected python script at: "+path_to_python_script
-end
 
 
 
-// 12.
-// to load python outputs and then remove temporal folders
-// function pigLoadAndRemoveTempFolder(string pathToTempFolder)
-function pigLoadAndRemoveTempFolder()
-	// quick check
-	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
-	print "\npathToTempFolder: " + pathToTempFolder
-	if (strlen(pathToTempFolder) == 0)
-		print("\nnull path\n")
-		abort
-	endif
-	// load
-	pigLoadFiles(dirpath=pathToTempFolder)
-	print "loaded temporal files at: "+pathToTempFolder
-	// remove
-	string platform = IgorInfo(2)
-	print "removing temporal files from: " + pathToTempFolder
-	if (CmpStr(platform, "Windows") == 0)
-		executeScriptText/b/z "cmd.exe /c del /q " + pathToTempFolder + "\\*.*"
-	else
-		string igorcmd = "do shell script \"rm -rf '" + pathToTempFolder + "'*\""
-		print igorcmd
-   	executeScriptText/z igorcmd
-		print s_value
-	endif
-end
-
-
-// 13
+// 15
 // runs script on movie depending whether system is windows or macos
 function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, string pathToMovie])
 	// check platform
 	string platform = IgorInfo(2)
 	
-	// 13.1 lookup paths
+	// 15.1 lookup paths
 	
-	// 13.1.1 check whether python interpreter has been defined
+	// 15.1.1 check whether python interpreter has been defined
 	if (paramIsDefault(pathToPython) != 0)
 		// this functions looks up for, or creates a txt file with the path to python
 		// the path inside the txt file is made a global string = pigthonPythonPath
@@ -807,7 +879,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToPython = TrimString(pigPathToPython)
 	endif
 
-	// 13.1.2 check for path to script	
+	// 15.1.2 check for path to script	
 	svar/z pigPathToScript = root:pigPathToScript
 	// if script in args, make script as preferred
 	if (paramIsDefault(pathToScript) == 0)
@@ -820,9 +892,9 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 		pathToScript = pigPathToScript
 	endif
 	
-	// 13.1.3 check path to movie
+	// 15.1.3 check path to movie
 	svar/z pigPathToMovie = root:pigPathToMovie
-	// same as 13.1.2
+	// same as 15.1.2
 	if (paramIsDefault(pathToMovie) == 0)
 		string/g pigPathToMovie = pathToMovie
 	// if not, and there is preferred script, used that
@@ -834,7 +906,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 13.2. print & double check
+	// 15.2. print & double check
 	print "\npig:"
 	// path to interpreter
 	if (numtype(strlen(pathToPython)) == 2)
@@ -859,7 +931,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 
 
-	// 13.3. run python script from terminal
+	// 15.3. run python script from terminal
 	if (CmpStr(platform, "Windows") == 0)
 		RunPythonScriptOnMovieWindows(pathToPython, pathToScript, pathToMovie)
 	else
@@ -867,7 +939,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	endif
 	
 	
-	// 13.4. load files from python output folder into igor
+	// 15.4. load files from python output folder into igor
 	string dirpath
 	if (CmpStr(platform, "Windows") == 0)
 		dirpath = pathToMovie[0,strsearch(pathToMovie, "\\", strlen(pathToMovie)-1, 3)]
@@ -879,7 +951,7 @@ function pigRunPythonScriptOnMovie([string pathToPython, string pathToScript, st
 	print "temporal files at: "+path_to_python_output
 	
 	
-	// 13.5. remove temporal folder
+	// 15.5. remove temporal folder
 	if (CmpStr(platform, "Windows") == 0)
 		executeScriptText/b/z "cmd.exe /c rmdir /s /q "+path_to_python_output 
 	else
