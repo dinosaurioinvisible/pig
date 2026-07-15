@@ -114,7 +114,7 @@ end
 
 
 // makes a copy of traces, only with the selected ROIs
-function makeGoodROIsFiles()
+function makeGoodROIsFilesx()
 	// get files
 	svar goodROIs = root:Packages:pig:zap_good
 	svar wn = root:Packages:pig:zap_wn
@@ -169,7 +169,7 @@ function makeGoodROIsFiles()
 	newSynapsesMap(backgroundImage, goodSynapses)
 end
 
-function makeNewROIMask(wave ROImask, string goodROIs)
+function makeNewROIMaskx(wave ROImask, string goodROIs)
 	// make a copy
 	string copyName = nameOfWave(ROImask) + "_good"
 	duplicate/O roimask, $copyName
@@ -187,7 +187,7 @@ function makeNewROIMask(wave ROImask, string goodROIs)
 	endfor
 end
 
-function makeNewSynapsesData(wave synapsesData, string goodROIs)
+function makeNewSynapsesDatax(wave synapsesData, string goodROIs)
 	// make a new table size=good
 	variable nrois = itemsInList(goodROIs)
 	string tableName = nameOfWave(synapsesData) + "_good"
@@ -207,7 +207,7 @@ function makeNewSynapsesData(wave synapsesData, string goodROIs)
 	endfor
 end
 
-function newSynapsesMap(wave image, wave synapsesData)
+function newSynapsesMapx(wave image, wave synapsesData)
 	string basename = stringByKey("basename", note(image), "=", "\r")
 	// save image as TIFF & synapses data as CSV
 	imageSave/T="TIFF"/O/P=pigTemp image as basename + "_background.tif"
