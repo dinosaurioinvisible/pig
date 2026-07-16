@@ -129,6 +129,9 @@ Window pigPanel(): Panel_pig
 	// pig: choose script
 	Button pigScript, pos={30,285}, size={100,20}, proc=button_pigScript, title="choose script"
 	Button pigScript, fColor=(16191,18504,18761)
+	// pig: define arguments
+	Button pigArgs, pos={140,285}, size={100,20}, proc=button_pigArgs, title="make args"
+	Button pigArgs, fColor=(16191,18504,18761)
 	// pig: run
 	Button pigRun, pos={270,285}, size={90,20}, proc=button_pigRun, title="run"
 	Button pigrun, fColor=(16191,18504,18761)
@@ -391,7 +394,28 @@ function button_pigScript(ba) : ButtonControl
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			pigSelectPythonScript()
+			// pigSelectPythonScript()
+			// brought this function here, it aint used anywhere else
+			// d: dialog, r: read only
+			string filter_script = ".py"
+			string message_script = "select python script"
+			open/d/r/f=filter_script/m=message_script refNum
+			if (cmpStr(s_fileName, "") == 0)
+				abort
+			endif
+			string path_to_python_script = s_fileName
+			//for debugging
+			//print path_to_python_script
+			//mode 5 is for turning igor spaths into unix/windows type paths
+			string platform = IgorInfo(2)
+			if (CmpStr(platform, "Windows") == 0)
+				path_to_python_script = parseFilePath(5,path_to_python_script,"\\",0,0)
+			else
+				path_to_python_script = parseFilePath(5,path_to_python_script,"/",0,0)
+			endif
+			// global path to script is created here
+			string/g root:Packages:pig:pigPathToScript = path_to_python_script
+			print "\n\tselected python script at: "+path_to_python_script
 			
 			break
 		case -1: // control being killed
@@ -401,22 +425,50 @@ function button_pigScript(ba) : ButtonControl
 end
 
 
-// pig: run python script on Igor wave
+// pig: select wave
+function button_pigArgs(ba) : ButtonControl
+	STRUCT WMButtonAction &ba
+	switch( ba.eventCode )
+		case 2: // mouse up
+		
+			// optional arguments
+			// a pop-up window of the form:
+			// [ blank (for key/argName) ] = [ blank (for value) ]
+			// then accept and it can be passed as string for args
+			
+			// TODO
+			
+			break
+		case -1: // control being killed
+			break
+	endswitch
+	return 0
+end
+
+
+// pig: run python script from Igor
+// optionally on an Igor wave
 function button_pigRun(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			string list=wavelist("*",";","DIMS:3")
+			string list = "none;" + waveList("*", ";", "")
 			string name
-			prompt name, "pick movie (in current data folder)", popup,list
+			prompt name, "pick wave (in current data folder)", popup,list
 			doprompt "pick movie ", name
-				if(V_flag==1)
-					Abort
-				endif	
+			if(v_flag==1)
+				abort
+			endif	
 			wave picwave=$name
-			
-			// TODO 
+			// check for wave
+			if (cmpstr(name,"none") == 0)
+				pigRun()
+			else
+				string wavePath = getWavesDataFolder(picwave, 2)
+				print "\n\tselected wave: " + wavePath
+				pigRun(path_to_wave = wavePath)
+			endif
 			
 			break
 		case -1: // control being killed
@@ -642,11 +694,6 @@ function button_mkmov(ba) : ButtonControl
 			string basename = nameOfWave(movie)
 			// movie
 			imageSave/u/T="TIFF"/s/O/P=pigTemp movie as basename + "_movie.tif"
-			// synapses data
-			// string synapsesDataName = waveList("*_synapses_data", ";", "")
-			// synapsesDataName = synapsesDataName[0, strsearch(synapsesDataName, ";", 0)-1]
-			// wave synapsesData = $synapsesDataName
-			// save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
 			// stimulus
 			string stimulusName = waveList("*_stim", ";", "")
 			stimulusName = stimulusName[0, strsearch(stimulusName, ";", 0)-1]
