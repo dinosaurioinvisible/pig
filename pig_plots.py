@@ -122,8 +122,9 @@ def mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath
     # make x axis for time bar
     movie_secs = len(movie)/frame_rate
     ax_stim.set_xlim(0, movie_secs)
-    # every 10 seconds + last
-    ticks = np.append(np.arange(0, movie_secs, 10), movie_secs).astype(int)
+    # every 10 seconds + last, but if less than 5 secs remaining remove last x10
+    ticks10 = np.arange(0, movie_secs, 10)[:-1] if movie_secs%10 < 5 else np.arange(0, movie_secs, 10)
+    ticks = np.append(ticks10, movie_secs).astype(int)
     ax_stim.set_xticks(ticks)
     ax_stim.set_xlabel("Time (s)")
     nframes = movie.shape[0]
@@ -139,21 +140,31 @@ def mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath
         t = i / frame_rate
         bar.set_xdata([t, t])
         return im, bar
-
-    ani = FuncAnimation(fig, update, frames=len(movie), blit=True)
+    
+    # this is to avoid saving every frame 
+    # too slow un prob unnecessary for a quick impression
+    # in this case, is every other frame (step = 2)
+    step = 2
+    frames_out = range(0, len(movie), step)
+    # to include all frames do frames=len(movie)
+    ani = FuncAnimation(fig, update, frames=frames_out, blit=True)
     # save a copy in desktop folder
     fcopy_dir = str(Path.home()/"Desktop")
     # fcopy_name = f'{savepath}.mp4'
     # savepath is an absolute path, so it's gonna override fcopy_dir
     fcopy_name = f'{Path(savepath).name}.mp4'
     fcopy_path = os.path.join(fcopy_dir,fcopy_name)
-    ani.save(fcopy_path, writer='ffmpeg', fps=int(frame_rate), dpi=60)
+    ani.save(fcopy_path, writer='ffmpeg', fps=int(frame_rate)/step, dpi=60)
     plt.close()
     print(f'saved to: {fcopy_path}')
+    # clean folder
+    folder = Path(path_to_movie).parent
+    for file in folder.iterdir():
+        if file.is_file():
+            file.unlink()
+     
     
     
-    
-
 # to run from terminal
 if __name__ == "__main__":
     tempFolder = ""

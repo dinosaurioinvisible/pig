@@ -620,8 +620,18 @@ function button_mkmov(ba) : ButtonControl
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			string list=wavelist("*",";","MINLAYERS:100")
-			list += waveList("*", ";", "DIMS:4")
+			// get movies with note information
+			string movieList=wavelist("*",";","MINLAYERS:100")
+			movieList += waveList("*", ";", "DIMS:4")
+			string list = ""
+			variable i
+			for (i = 0; i < itemsInList(movieList); i += 1)
+				string okMovie = stringFromList(i, movieList)
+				if (strlen(note($okMovie)) > 0)
+					list += okMovie + ";"
+				endif
+			endfor
+			
 			string name
 			prompt name, "Pick movie", popup,list
 			doprompt "Make video from movie", name
@@ -635,10 +645,10 @@ function button_mkmov(ba) : ButtonControl
 			// movie
 			imageSave/u/T="TIFF"/s/O/P=pigTemp movie as basename + "_movie.tif"
 			// synapses data
-			string synapsesDataName = waveList("*_synapses_data", ";", "")
-			synapsesDataName = synapsesDataName[0, strsearch(synapsesDataName, ";", 0)-1]
-			wave synapsesData = $synapsesDataName
-			save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
+			// string synapsesDataName = waveList("*_synapses_data", ";", "")
+			// synapsesDataName = synapsesDataName[0, strsearch(synapsesDataName, ";", 0)-1]
+			// wave synapsesData = $synapsesDataName
+			// save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
 			// stimulus
 			string stimulusName = waveList("*_stim", ";", "")
 			stimulusName = stimulusName[0, strsearch(stimulusName, ";", 0)-1]
@@ -655,6 +665,7 @@ function button_mkmov(ba) : ButtonControl
 			nvar roisize = root:Packages:pig:approxROIsize
 			variable frameRate = numberByKey("dt",note(movie),"=","\r")	
 			string args = temp + " --roiRadius="+num2str(roisize) + " --frameRate="+num2str(frameRate) + " --saveName=" + nameOfWave(movie)
+			// makeMovie
 			if (CmpStr(platform, "Windows") == 0)
 				runPythonScriptOnWindows(pathToPython, pathToPigPlots, args=args)
 			else
