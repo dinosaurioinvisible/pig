@@ -687,7 +687,7 @@ class KS_pipeline:
 
     # overlay + stimulus 
     # i'm making this more general, in case we want to use it 
-    # fot other movies (reg, bc, etc)
+    # for other movies (reg, bc, etc)
     def overlay_plus_stimulus(self, movie):
         import matplotlib as mpl
         if os.path.exists('/opt/homebrew/bin/ffmpeg'):

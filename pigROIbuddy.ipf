@@ -333,11 +333,13 @@ function makeGoodROIsFiles()
 		wave maskWave = $maskName
 		makeNewROIMask(maskWave, goodROIs)
 	endfor
+	
 	// make new list (assuming 1 _synapse_data file in folder)
 	string synapsesName = waveList("*synapses_data", ";", "")
 	synapsesName = synapsesName[0, strsearch(synapsesName, ";", 0)-1]
 	wave synapsesData = $synapsesName
 	makeNewSynapsesData(synapsesData, goodROIs)
+	
 	// make new synapses_map image (this uses python)
 	string backgroundImageName = waveList("*_deltaf", ";", "")
 	wave backgroundImage = $(backgroundImageName[0, strsearch(backgroundImageName, ";", 0)-1])
@@ -348,7 +350,13 @@ function makeGoodROIsFiles()
 		print "could not find background image or synapses data"
  	   abort
 	endif
-	newSynapsesMap(backgroundImage, goodSynapses)
+	makeNewSynapsesMap(backgroundImage, goodSynapses)
+	
+	// make new overlay movie
+	string backgroundMovieName = waveList("*_reg_isq_bc",";","DIMS:3")
+	backgroundMovieName = backgroundMovieName[0, strsearch(backgroundMovieName,";",0)-1]
+	wave backgroundMovie = $backgroundMovieName
+	makeNewoverlayMovie(backgroundMovie, goodSynapses)
 end
 
 
@@ -392,11 +400,12 @@ function makeNewSynapsesData(wave synapsesData, string goodROIs)
 end
 
 
-function newSynapsesMap(wave image, wave synapsesData)
+function makeNewSynapsesMap(wave image, wave synapsesData)
 	string basename = stringByKey("basename", note(image), "=", "\r")
 	// save image as TIFF & synapses data as CSV
 	imageSave/T="TIFF"/O/P=pigTemp image as basename + "_background.tif"
 	save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
+	// for debugging only
 	// imageSave/T="TIFF"/O/P=desktop image as basename + "_background.tif"
 	// save/G/M="\n"/DLIM=","/O/P=desktop synapsesData as basename + "_synapses.csv"
 	// basic info
@@ -408,11 +417,10 @@ function newSynapsesMap(wave image, wave synapsesData)
 	// define arguments
 	string temp
 	sprintf temp, "--tempFolder='%s'", pathToTempFolder
-	// sprintf temp, "--tempFolder='%s'", renamePath_igor2sys(specialDirPath("Desktop",0,0,0))
 	nvar roisize = root:Packages:pig:approxROIsize
 	string synMapName = waveList("*synapses_map", ";", "")
 	synMapName = synMapName[0, strsearch(synMapName, ";", 0)-1]
-	string args = temp + " --roiRadius=" + num2str(roisize) + " --saveName=" + synMapName
+	string args = temp + " --roiRadius="+num2str(roisize) + " --saveName="+synMapName
 	// run in python
 	if (CmpStr(platform, "Windows") == 0)
 		runPythonScriptOnWindows(pathToPython, pathToPigPlots, args=args)
@@ -424,5 +432,38 @@ function newSynapsesMap(wave image, wave synapsesData)
 	// scale
 	string goodSynMapName = waveList("*synapses_map_good", ";", "")
 	wave goodSynapsesMap = $(goodSynMapName[0, strsearch(goodSynMapName, ";", 0)-1])
-	// copyscales $synMapName, goodSynapsesMap
+	copyscales $synMapName, goodSynapsesMap
+end
+
+
+function makeNewOverlayMovie(wave movie, wave goodSynapses)
+	// basic info
+	string platform = IgorInfo(2)
+	string igorcmd
+	svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+	svar pathToPython = root:Packages:pig:pigPathToPythonInterpreter
+	svar pathToPigPlots = root:Packages:pig:pigPathToPigPlots
+	// make movie for python to load
+	string basename = nameOfWave(movie)
+	imageSave/u/T="TIFF"/s/O/P=pigTemp movie as basename + "_movie.tif"
+	save/G/M="\n"/DLIM=","/O/P=pigTemp goodSynapses as basename + "_synapses.csv"
+	// define arguments
+	string temp
+	sprintf temp, "--tempFolder='%s'", pathToTempFolder
+	nvar roisize = root:Packages:pig:approxROIsize
+	string overlayName = waveList("*_overlay", ";", "")
+	overlayName = overlayName[0, strsearch(overlayName, ";", 0)-1]
+	string args = temp + " --roiRadius="+num2str(roisize) + " --saveName="+overlayName
+	// run in python
+	if (CmpStr(platform, "Windows") == 0)
+		runPythonScriptOnWindows(pathToPython, pathToPigPlots, args=args)
+	else
+		runPythonScriptOnMacOs(pathToPython, pathToPigPlots, args=args)
+	endif
+	// load and remove temp 
+	pigLoadAndRemoveTempFolder()
+	// scale
+	string overlayGoodName = waveList("*_overlay_good", ";", "")
+	wave overlayGood = $(overlayGoodName[0, strsearch(overlayGoodName, ";", 0)-1])
+	copyscales $overlayName, overlayGood
 end

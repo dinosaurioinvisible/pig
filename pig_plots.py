@@ -36,16 +36,15 @@ def plot_good_synapses(path_to_image, path_to_synapses, roi_radius, savepath,
     # remove margins
     plt.tight_layout()
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    plt.savefig(f'{savepath}_good.png', dpi=100, bbox_inches='tight', pad_inches=0)
     # remove files
     os.remove(path_to_image)
     os.remove(path_to_synapses)
-    plt.savefig(f'{savepath}_good.png', dpi=100, bbox_inches='tight', pad_inches=0)
 
 
 
-
- # function to overlay circles in the movie
-def overlay_synapses(path_to_movie, path_to_stimulus, path_to_synapses, roi_radius, frame_rate, savepath,
+# function to overlay circles in the movie
+def overlay_synapses(path_to_movie, path_to_synapses, roi_radius, savepath,
                      color=(255,0,0), thickness=1, percentile_clip=(1,99), labels=False):
     # load
     movie = tf.imread(path_to_movie)
@@ -74,27 +73,14 @@ def overlay_synapses(path_to_movie, path_to_stimulus, path_to_synapses, roi_radi
     for ch, val in enumerate(color):
         overlay[:, rr, cc, ch] = val
     # save
-    # path_to_overlay = f'{savepath}_overlay.tif'
-    # tf.imwrite(path_to_overlay, overlay)
-    # I commented out these lines, but i'm not removing them
-    # in case someone wants to use this functinoality
-    # (it saves a tiff version of the movie with the red overlayed circles, in TIFF)
-    # – it is useful to analayse the performance of the algorithm 
-    # save a copy in desktop (to avoid permission issues)
-    # fcopy_dir = str(Path.home()/"Desktop")
-    # fcopy_name = f'{self.fname}_overlay_f{self.fov}_a{self.alpha}_r{self.synapseSize}_d{self.min_distance}.tif'
-    # fcopy_path = os.path.join(fcopy_dir,fcopy_name)
-    # tf.imwrite(fcopy_path, overlay)
-    mk_movie_plus_stimulus(overlay, path_to_stimulus, frame_rate, savepath)
+    path_to_overlay = f'{savepath}_good.tif'
+    tf.imwrite(path_to_overlay, overlay)
     # remove files
     os.remove(path_to_movie)
-    os.remove(path_to_stimulus)
     os.remove(path_to_synapses)
 
 
  # overlay + stimulus 
- # i'm making this more general, in case we want to use it 
- # fot other movies (reg, bc, etc)
 def mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath):
     # load
     movie = tf.imread(path_to_movie)
@@ -157,7 +143,7 @@ def mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath
     ani.save(fcopy_path, writer='ffmpeg', fps=int(frame_rate)/step, dpi=60)
     plt.close()
     print(f'saved to: {fcopy_path}')
-    # clean folder
+    # clean folder (this doesn't go back to Igor)
     folder = Path(path_to_movie).parent
     for file in folder.iterdir():
         if file.is_file():
@@ -181,33 +167,36 @@ if __name__ == "__main__":
     # image (STD, ∆F, etc)
     image_file = [f for f in os.listdir(tempFolder) if f.endswith('_background.tif')]
     path_to_image = os.path.join(tempFolder,image_file[0]) if len(image_file) > 0 else ""
-    # print(path_to_image)
     # movie (overlay or any kind)
     movie_file = [f for f in os.listdir(tempFolder) if f.endswith('_movie.tif')]
     path_to_movie = os.path.join(tempFolder,movie_file[0]) if len(movie_file) > 0 else ""
-    # print(path_to_movie)
     # stimulus/analysis wave
     stimulus_file = [f for f in os.listdir(tempFolder) if f.endswith('_stimulus.txt')]
     path_to_stimulus = os.path.join(tempFolder,stimulus_file[0]) if len(stimulus_file) > 0 else ""
-    # print(path_to_stimulus)
     # synapses data
     data_file = [f for f in os.listdir(tempFolder) if f.endswith('_synapses.csv')]
     path_to_synapses = os.path.join(tempFolder, data_file[0]) if len(data_file) > 0 else ""
-    # print(path_to_synapses)
     # save path
     savepath = tempFolder if not savename else os.path.join(tempFolder,savename)
     # depending on input:
-    # synapses map
+    # background image + synapses > synapses map
     if os.path.isfile(path_to_image) & os.path.isfile(path_to_synapses):
         plot_good_synapses(path_to_image, path_to_synapses, roi_radius, savepath)
-    # movie + stimulus
+    # movie + synapses > overlay
+    elif os.path.isfile(path_to_movie) & os.path.isfile(path_to_synapses):
+        overlay_synapses(path_to_movie, path_to_synapses, roi_radius, savepath)
+    # movie + stimulus > movie in desktop
     elif os.path.isfile(path_to_movie) & os.path.isfile(path_to_stimulus):
         mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath)
-    # movie + overlay + stimulus
-    # elif os.path.isfile(path_to_movie) & os.path.isfile(path_to_synapses) & os.path.isfile(path_to_stimulus):
-    # overlay_synapses(path_to_movie, path_to_stimulus, path_to_synapses, roi_radius, frame_rate, savepath)
     else:
-        print("?")
+        print(f'path_to_image: {path_to_image}')
+        print(f'path_to_movie: {path_to_movie}')
+        print(f'path_to_stimulus: {path_to_stimulus}')
+        print(f'path_to_synapses" {path_to_synapses}')
+        print(f'savepath: {savepath}')
+        print("\n?\n")
+    
+    
 
 
 

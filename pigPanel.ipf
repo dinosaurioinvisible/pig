@@ -1,8 +1,6 @@
 ﻿#pragma TextEncoding = "UTF-8"
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 
-// #include "pig"
-
 // panel for pig
 Window pigPanel(): Panel_pig
 
@@ -621,7 +619,7 @@ function button_mkmov(ba) : ButtonControl
 		case 2: // mouse up
 		
 			// get movies with note information
-			string movieList=wavelist("*",";","MINLAYERS:100")
+			string movieList=wavelist("*",";","MINLAYERS:10")
 			movieList += waveList("*", ";", "DIMS:4")
 			string list = ""
 			variable i

@@ -813,6 +813,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	copyscales $movieWave, $wx_rm
 	string wx_sm = wx + "_synapses_map"
 	copyscales $movieWave, $wx_sm
+	setscale/p z, 0, 1, "RGB", $wx_sm
 	
 	// for these, time goes in the x axis
 	// also, for traces we want to have the metadata
