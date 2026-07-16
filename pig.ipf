@@ -9,7 +9,6 @@
 // for stand-alone use, and to avoid compilation confusions/issues
 #include "pigLoadMultipleFiles"
 #include "pigHelperFunctions"
-#include "pigZapBadROIs"
 #include "pigROIbuddy"
 #include "pigCh2LineRes"
 #include "pigWM4DImageSlider"
@@ -800,9 +799,11 @@ function pigRunKS(wave movie [wave analysisWave])
 	copyscales $movieWave, $wx
 	setscale/p z, 0,  dt, "s", $wx
 	// movie with overlayed synapses
+	// overlay layers are imported as RGB=4 & frames as chunks=nFrames
 	string wx_overlay = wx + "_overlay"
 	copyscales $movieWave, $wx_overlay
-	setscale/p z, 0,  dt, "s", $wx_overlay
+	setscale/p t, 0,  dt, "s", $wx_overlay
+	setscale/p z, 0,  1, "RGB", $wx_overlay
 	// these have different terminations
 	string wx_df = wx + "_deltaf"
 	copyscales $movieWave, $wx_df
@@ -827,6 +828,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	note $wx_pm, wx_info
 	note $wx_rm, wx_info
 	note $wx_dff, wx_info
+	note $wx_overlay, wx_info
 	
 	// redimension stimulus wave from python
 	string stimulusWaveKS = cwdir + basename +"_stimulus"

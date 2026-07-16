@@ -114,11 +114,13 @@ Window pigPanel(): Panel_pig
 	Button getMetadata,help={"retrieves metadata using PIG"}
 	Button getMetadata,fColor=(16191,18504,18761)
 	Button ROIbuddy,pos={145,210},size={100,20},proc=button_ROIbuddy,title="ROI buddy"
-	Button ROIbuddy,help={"ROI buddy, from ART"}
+	Button ROIbuddy,help={"new ROI buddy + zap bad ROIs"}
 	Button ROIbuddy,fColor=(16191,18504,18761)
-	Button zapBadROIs,pos={260,210},size={100,20},proc=button_zapBadROIs,title="Zap bad ROIs"
-	Button zapBadROIs,help={"Discard ROIs with bad signals"}
-	Button zapBadROIs,fColor=(16191,18504,18761)
+	// Button zapBadROIs,pos={260,210},size={100,20},proc=button_zapBadROIs,title="Zap bad ROIs"
+	// Button zapBadROIs,help={"Discard ROIs with bad signals"}
+	Button xx,pos={260,210},size={100,20},proc=button_mkmov,title="Make movie"
+	Button xx,help={""}
+	Button xx,fColor=(16191,18504,18761)
 
 	// pig: main box
 	// /w=(left, top, right, bottom)
@@ -612,27 +614,56 @@ function button_ROIbuddy(ba) : ButtonControl
 	return 0
 end
 
-// 11. Zap Bad ROIs
-function button_zapBadROIs(ba) : ButtonControl
+// button 11
+function button_mkmov(ba) : ButtonControl
 	STRUCT WMButtonAction &ba
 	switch( ba.eventCode )
 		case 2: // mouse up
 		
-			// function: ROI buddy
-			string list=wavelist("*traces*",";","DIMS:2")
+			string list=wavelist("*",";","MINLAYERS:100")
+			list += waveList("*", ";", "DIMS:4")
 			string name
-			prompt name, "Data wave", popup,list
-			doprompt "Pick data to examine ", name
+			prompt name, "Pick movie", popup,list
+			doprompt "Make video from movie", name
 				if(V_flag==1)
 					Abort
-				endif
-				
-			wave w=$name
-			zapBadROIs(w)
+				endif				
+			wave movie=$name
 			
-			break
-		case -1: // control being killed
-			break
-	endswitch
-	return 0
+			// mk files for python
+			string basename = nameOfWave(movie)
+			// movie
+			imageSave/u/T="TIFF"/s/O/P=pigTemp movie as basename + "_movie.tif"
+			// synapses data
+			string synapsesDataName = waveList("*_synapses_data", ";", "")
+			synapsesDataName = synapsesDataName[0, strsearch(synapsesDataName, ";", 0)-1]
+			wave synapsesData = $synapsesDataName
+			save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"
+			// stimulus
+			string stimulusName = waveList("*_stim", ";", "")
+			stimulusName = stimulusName[0, strsearch(stimulusName, ";", 0)-1]
+			wave stimulus = $stimulusName
+			save/g/m="\n"/dlim=","/p=pigTemp/o stimulus as basename + "_stimulus.txt"
+			// define paths
+			svar pathToPython = root:Packages:pig:pigPathToPythonInterpreter
+			svar pathToPigPlots = root:Packages:pig:pigPathToPigPlots
+			svar pathToTempFolder = root:Packages:pig:pigPathToTempFolder
+			string temp
+			sprintf temp, "--tempFolder='%s'", pathToTempFolder
+			string platform = IgorInfo(2)
+			// define args
+			nvar roisize = root:Packages:pig:approxROIsize
+			variable frameRate = numberByKey("dt",note(movie),"=","\r")	
+			string args = temp + " --roiRadius="+num2str(roisize) + " --frameRate="+num2str(frameRate) + " --saveName=" + nameOfWave(movie)
+			if (CmpStr(platform, "Windows") == 0)
+				runPythonScriptOnWindows(pathToPython, pathToPigPlots, args=args)
+			else
+				runPythonScriptOnMacOs(pathToPython, pathToPigPlots, args=args)
+    		endif
+			
+				break
+			case -1: // control being killed
+				break
+		endswitch
+		return 0
 end

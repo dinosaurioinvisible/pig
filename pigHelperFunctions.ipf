@@ -19,6 +19,30 @@
 // itemsInList
 
 
+// fix issue when loading tif RGB movies
+// swap (wrong) layers into channels (RGB channels)
+// and (wrong) chunks into layers (movie frames)
+function correctRGB4layers(wave movie)
+	// get dims
+	variable nRows = dimSize(movie, 0)
+	variable nCols = dimSize(movie, 1)
+	variable nChannels = dimSize(movie, 2)
+	variable nFrames = dimSize(movie, 3)
+	// mk copy & swap layers and chunks
+	// make/o/u/n=(nRows, nCols, nFrames, nChannels) movieCopy
+	// movieCopy = movie[p][q][s][r]
+	duplicate/O movie, movieCopy
+	redimension/N=(nRows, nCols, nFrames, nChannels) movieCopy
+	movieCopy = movie[p][q][s][r]
+	// copy scales of swapped dims
+	copyScales movie, movieCopy
+	setScale/p z, 0, dimDelta(movie, 3), waveUnits(movie, 3), movieCopy
+	setScale/p t, 0, dimDelta(movie, 2), waveUnits(movie, 2), movieCopy
+	string movieName = nameOfWave(movie)
+	rename movieCopy, $(movieName + "_rgb")
+end
+
+
 // check wether fpath in notes still exists there
 // if not, make a temporal copy and change in notes
 // if stop: just check & abort; otherwise, create a temp copy
