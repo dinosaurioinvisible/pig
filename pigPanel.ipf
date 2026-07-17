@@ -467,7 +467,7 @@ function button_pigRun(ba) : ButtonControl
 			else
 				string wavePath = getWavesDataFolder(picwave, 2)
 				print "\n\tselected wave: " + wavePath
-				pigRun(path_to_wave = wavePath)
+				pigRun(pigWaveName = wavePath)
 			endif
 			
 			break

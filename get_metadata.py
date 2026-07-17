@@ -100,6 +100,7 @@ def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,):
 
 # this, or any other testing movie has to be commented out
 # otherwise Igor function won't work
+# movie = "/Users/f/Dropbox/_r66y/data/2p_data/demoMovies/new_movies/ot_s11_ss5_100lines_L100Mw_00002.tif"
 # movie = "/Users/f/Desktop/demoMovies/F1C3_Dir12_5Hz_00001.tif"
 # movie = "C:\\Users\\Fernando\\Desktop\\demoMovies\\F1C3_Dir12_1Hz_00002.tif"
 # movie = "//Users/f/desktop/iGluSnFR-4s tests/050526/AF10_HUC/glusnfr4_CR_20Hz004.tif"

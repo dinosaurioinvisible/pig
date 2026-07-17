@@ -58,29 +58,54 @@ class KS_pipeline:
             self.lambda_reg = lambda_reg
             self.edge_margin = edge_margin
             # binary options
+            self.volumes = 0
             self.igor = igor
             self.run()
 
+    # TODO 
     def run(self):
-        # load & pre-processing
+        # loading and data
         self.load_movie()
-        self.register()
-        self.interpolate_square()
-        self.correction()
-        # setup search
-        self.define_roi_size()
-        self.stim_transitions()
-        # search for potential candidates
-        self.mk_deltaf_map()
-        # filter candidate synapses
-        self.ks_distance()
-        # in case there's no synapses found
-        if isinstance(self.synapses,np.ndarray):
-            # extract traces
-            self.ridge_demixing()
-            self.compute_dff_traces()
-            self.plot_synapses()
-            self.overlay_synapses()
+        # pre-processing
+        if self.volumes > 0:
+            self.movies = self.movie.copy()
+            for movie in range(self.movies.shape[1]):
+                self.movie = self.movies[:,movie,0,:,:]
+                self.register()
+                self.interpolate_square()
+                self.correction()
+                # setup search
+                self.define_roi_size()
+                self.stim_transitions()
+                # search for potential candidates
+                self.mk_deltaf_map()
+                # filter candidate synapses
+                self.ks_distance()
+                # in case there's no synapses found
+                if isinstance(self.synapses,np.ndarray):
+                    # extract traces
+                    self.ridge_demixing()
+                    self.compute_dff_traces()
+                    self.plot_synapses()
+                    self.overlay_synapses()
+        else:
+            self.register()
+            self.interpolate_square()
+            self.correction()
+            # setup search
+            self.define_roi_size()
+            self.stim_transitions()
+            # search for potential candidates
+            self.mk_deltaf_map()
+            # filter candidate synapses
+            self.ks_distance()
+            # in case there's no synapses found
+            if isinstance(self.synapses,np.ndarray):
+                # extract traces
+                self.ridge_demixing()
+                self.compute_dff_traces()
+                self.plot_synapses()
+                self.overlay_synapses()
 
     
     def load_movie(self):
@@ -112,15 +137,19 @@ class KS_pipeline:
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
-            self.movie = raw_movie[:,0,:,:]
+            if self.volumes > 0:
+                self.lines = 100
+                self.cols = 50
+                raw_movie = raw_movie.reshape(self.volumes, self.zTotal, 2, self.lines, self.cols)
+                self.movie = raw_movie[:,:self.zLayers]
+            else:
+                self.movie = raw_movie[:,0,:,:]
         else:
             self.get_metadata(x, datatype='ImageDescription')
             self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
-
-
     def mk_names(self):
         self.fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
         self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
@@ -164,6 +193,13 @@ class KS_pipeline:
             self.zoomFactor = float(self.metadata['SI.hRoiManager.scanZoomFactor'])
             self.scanAngleMultFast = float(self.metadata["SI.hRoiManager.scanAngleMultiplierFast"])
             self.scanAngleMultSlow = float(self.metadata["SI.hRoiManager.scanAngleMultiplierSlow"])
+            try:
+                self.volumes = int(self.metadata["SI.hStackManager.actualNumVolumes"])
+                self.zLayers = int(self.metadata["SI.hStackManager.actualNumSlices"])
+                self.zFlyback = int(self.metadata["SI.hStackManager.actualStackZStepSize"])
+                self.zTotal = int(self.metadata["SI.hStackManager.numFramesPerVolumeWithFlyback"])
+            except:
+                self.volumes = 0
         elif datatype == 'Igor_111':
             # this is from Igor, so it can be any kind, not only imageDescription
             try:
@@ -204,6 +240,9 @@ class KS_pipeline:
             # make stimulus array (depending on microscope)
             if len(raw_movie.shape) == 4:
                 self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
+            # in this case every layer should use the same stimulus
+            elif len(raw_movie.shape) == 5:
+                self.stimulus = raw_movie[:,0,1,:,:].mean(axis=(1,2))
             else:
                 self.stimulus = raw_movie[1::2].mean(axis=(1,2))
         # normalize
@@ -474,6 +513,11 @@ class KS_pipeline:
         # ks peaks = [y0, x0, dff, ks dist, ks pval]
         # sort by p-vals
         self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[-1]))
+        # in case there's no
+        if len(self.ks_peaks) == 0:
+            self.skip_ks = True
+            self.synapses = []
+            return
         # threshold line
         pvals = self.ks_peaks[:,-1]
         m = len(pvals)
