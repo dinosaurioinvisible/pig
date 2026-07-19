@@ -15,7 +15,7 @@ def flatten_dict(d, parent_key="", sep="."):
     return flat
 
 # input: path to movie
-def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,):
+def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False):
     # load movie
     x = tf.TiffFile(path_to_movie)
     metadata = {}

@@ -67,45 +67,23 @@ class KS_pipeline:
         # loading and data
         self.load_movie()
         # pre-processing
-        if self.volumes > 0:
-            self.movies = self.movie.copy()
-            for movie in range(self.movies.shape[1]):
-                self.movie = self.movies[:,movie,0,:,:]
-                self.register()
-                self.interpolate_square()
-                self.correction()
-                # setup search
-                self.define_roi_size()
-                self.stim_transitions()
-                # search for potential candidates
-                self.mk_deltaf_map()
-                # filter candidate synapses
-                self.ks_distance()
-                # in case there's no synapses found
-                if isinstance(self.synapses,np.ndarray):
-                    # extract traces
-                    self.ridge_demixing()
-                    self.compute_dff_traces()
-                    self.plot_synapses()
-                    self.overlay_synapses()
-        else:
-            self.register()
-            self.interpolate_square()
-            self.correction()
-            # setup search
-            self.define_roi_size()
-            self.stim_transitions()
-            # search for potential candidates
-            self.mk_deltaf_map()
-            # filter candidate synapses
-            self.ks_distance()
-            # in case there's no synapses found
-            if isinstance(self.synapses,np.ndarray):
-                # extract traces
-                self.ridge_demixing()
-                self.compute_dff_traces()
-                self.plot_synapses()
-                self.overlay_synapses()
+        self.register()
+        self.interpolate_square()
+        self.correction()
+        # setup search
+        self.define_roi_size()
+        self.stim_transitions()
+        # search for potential candidates
+        self.mk_deltaf_map()
+        # filter candidate synapses
+        self.ks_distance()
+        # in case there's no synapses found
+        if isinstance(self.synapses,np.ndarray):
+            # extract traces
+            self.ridge_demixing()
+            self.compute_dff_traces()
+            self.plot_synapses()
+            self.overlay_synapses()
 
     
     def load_movie(self):
@@ -134,22 +112,24 @@ class KS_pipeline:
             else:
                 print(f'python: processing movie from: {self.fpath}')
         # metadata (assuming scanImage)
+
         # & de-interleave (depending on microscope)
         if len(raw_movie.shape) == 4:
             self.get_metadata(x, datatype='Software')
             if self.volumes > 0:
-                self.lines = 100
-                self.cols = 50
+                self.lines, self.cols = raw_movie.shape[2:]
                 raw_movie = raw_movie.reshape(self.volumes, self.zTotal, 2, self.lines, self.cols)
                 self.movie = raw_movie[:,:self.zLayers]
             else:
                 self.movie = raw_movie[:,0,:,:]
+
         else:
             self.get_metadata(x, datatype='ImageDescription')
             self.movie = raw_movie[0::2]
         self.nframes = self.movie.shape[0]
         self.duration = self.nframes/self.frameRate
         self.mk_stimulus(raw_movie)
+        
     def mk_names(self):
         self.fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
         self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
@@ -322,9 +302,9 @@ class KS_pipeline:
         self.or_nrows, self.or_ncols = self.movie.shape[1:]
         self.fovx = self.fov / self.zoomFactor * self.scanAngleMultFast
         self.fovy = self.fov / self.zoomFactor * self.scanAngleMultSlow
-        # pixel sizes: px:cols, py:rows
-        self.px = self.fovx / self.or_ncols   # horizontal
-        self.py = self.fovy / self.or_nrows   # vertical
+        # pixel sizes: px:cols (horizontal), py:rows (vertical)
+        self.px = self.fovx / self.or_ncols
+        self.py = self.fovy / self.or_nrows
 
         # if pixels are smaller vertically
         if self.py < self.px:
@@ -458,7 +438,7 @@ class KS_pipeline:
         bval = self.stimulus[1:10].mean()
         # replace val at ~ t=0 (first window), to avoid artifacts
         self.stimulus[0] = bval
-        self.baseline = np.where(abs(self.stimulus-bval) < bval*delta, 0, 1)
+        self.baseline = np.where(abs(self.stimulus-bval) <= bval*delta, 0, 1)
         # wx: window after which, even if baseline, signals reflect activity
         # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
         wx = int(self.frameRate * post_window/1000)

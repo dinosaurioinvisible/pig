@@ -329,6 +329,18 @@ function pigLoadMovie()
 	// ch2res makes 1d wave, so has to be scaled in x
 	setscale/p x, 0, dt,"s",$stimulusWaveCh2res
 	
+	// for 4D movies (slices=useful, layers=slices + flyback, volumes=nframe per slice)
+	variable zSlices = numberBykey("Software.SI.hStackManager.actualNumSlices",note($movieName),"=","\r")
+	variable zLayers = numberBykey("Software.SI.hStackManager.numFramesPerVolumeWithFlyBack",note($movieName),"=","\r")
+	variable zVolumes = numberBykey("Software.SI.hStackManager.actualNumVolumes",note($movieName),"=","\r")
+	// 0:normal, 1:nan, 2:inf
+	variable check4d = zSlices + zLayers + zVolumes
+	if (numtype(check4D) != 0)
+		wave movie = $movieName
+		wave movie4D = splitZmovies(movie, zSlices, zLayers, zVolumes)
+	endif
+	
+	
 	print "\nloaded movie from: "+fpath
 end
 
