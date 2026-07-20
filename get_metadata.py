@@ -15,7 +15,7 @@ def flatten_dict(d, parent_key="", sep="."):
     return flat
 
 # input: path to movie
-def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False):
+def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,verbose=False):
     # load movie
     x = tf.TiffFile(path_to_movie)
     metadata = {}
@@ -93,9 +93,10 @@ def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False):
         f.close()
     else:
         # printout & return
-        print('\n\nmetadata found:\n')
-        for k,v in metadata.items():
-            print(f'{k} : {v}')
+        if verbose:
+            print('\n\nmetadata found:\n')
+            for k,v in metadata.items():
+                print(f'{k} : {v}')
         return metadata
 
 # this, or any other testing movie has to be commented out

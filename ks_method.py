@@ -12,6 +12,7 @@ import numpy as np
 import tifffile as tf
 import pandas as pd
 # specific functions
+import get_metadata
 from scipy.optimize import curve_fit
 from scipy.ndimage import shift, gaussian_filter
 from scipy.stats import ks_2samp
@@ -39,7 +40,8 @@ class KS_pipeline:
         lambda_reg = 0.05,              # regul. strength in ridge regression
         edge_margin = 3,                # discarded, could be variable
         # for debugging
-        igor = True                     # for saving & then loading into igor
+        igor = False,                    # for saving & then loading into igor
+        analysisWave_array = None       # to give manually instead of txt
         ):
             # chosen in igor
             self.fpath = fpath
@@ -57,52 +59,52 @@ class KS_pipeline:
             self.sigma_fit = sigma_fit
             self.lambda_reg = lambda_reg
             self.edge_margin = edge_margin
-            # binary options
-            self.volumes = 0
+            # for debugging mostly
             self.igor = igor
+            self.anWave_array = analysisWave_array
             self.run()
 
     # TODO 
     def run(self):
         # loading and data
         self.load_movie()
-        # pre-processing
-        self.register()
-        self.interpolate_square()
-        self.correction()
-        # setup search
+        self.get_metadata()
+        self.mk_names()
+        # make movie & stimulus
+        self.deinterleave()
+        self.mk_stimulus()
+        self.stim_transitions() 
+        # registration, interpolation, bleach correction
+        self.preprocessing()
+        # search for ROIs
         self.define_roi_size()
-        self.stim_transitions()
-        # search for potential candidates
-        self.mk_deltaf_map()
-        # filter candidate synapses
-        self.ks_distance()
-        # in case there's no synapses found
-        if isinstance(self.synapses,np.ndarray):
-            # extract traces
-            self.ridge_demixing()
-            self.compute_dff_traces()
-            self.plot_synapses()
-            self.overlay_synapses()
+        self.find_rois()
+        self.export_data()
+        # plotting
+        self.mk_figures()
 
     
     def load_movie(self):
-        # assumes raw movie
+        # assumes raw movie (not deinterleaved)
+        # tf.imread loses metadata
         x = tf.TiffFile(self.fpath)
         # check for concatenation
         if len(self.concat) > 0:
+            # paths from igor come in igor format (uses ":" separators)
             if platform.system() == 'Windows':
                 movie_paths = [mp[0]+':'+mp[1:].replace(":","\\") for mp in self.concat[1:-1].split(',')]
             elif platform.system() == 'Darwin':
                 movie_paths = [mp for mp in self.concat[1:-1].replace(":","/").replace("Macintosh HD","").split(",")]
             else:
-                print("\nplatform not recognized (this only runs on Windows and MacOS)\n")
+                raise OSError(f'\nUnsupported platform: {platform.system()}'
+                              'KS only runs on Windows and macOS\n')
             movies = [tf.imread(path) for path in movie_paths]
             self.cc_nframes = [int(len(movie)/2) for movie in movies]
-            raw_movie = np.concatenate(movies,axis=0)
+            self.raw_movie = np.concatenate(movies,axis=0)
         else:
-            raw_movie = x.asarray()
-        if len(raw_movie.shape) < 3 or raw_movie.shape[0] < 10:
+            self.raw_movie = x.asarray()
+        # safety check: to avoid processing images or non-movie stacks
+        if len(self.raw_movie.shape) < 3 or self.raw_movie.shape[0] < 100:
             raise Exception("this doesn't seem to be a framescan")
         # for output data
         if self.igor:
@@ -111,25 +113,85 @@ class KS_pipeline:
                 print(f'python: processing movies from: {movie_paths}')
             else:
                 print(f'python: processing movie from: {self.fpath}')
-        # metadata (assuming scanImage)
+                
 
-        # & de-interleave (depending on microscope)
-        if len(raw_movie.shape) == 4:
-            self.get_metadata(x, datatype='Software')
-            if self.volumes > 0:
-                self.lines, self.cols = raw_movie.shape[2:]
-                raw_movie = raw_movie.reshape(self.volumes, self.zTotal, 2, self.lines, self.cols)
-                self.movie = raw_movie[:,:self.zLayers]
-            else:
-                self.movie = raw_movie[:,0,:,:]
-
+    # TODO: by removing the tag.names in get_metadata.py
+    # this could be halved, taking off the 111 case
+    # the other option is to use a dictionary 
+    # honestly i don't know if it's worth the effort
+    def get_metadata(self):
+        self.metadata = get_metadata.get_scanImage_metadata(self.fpath)
+        self.movie5d = False
+        try_imageDescription, try_zData, try_Igor111 = False, False, False
+        # try software type first
+        try:
+            self.frameRate = round(float(self.metadata['Software.SI.hRoiManager.scanFrameRate']))
+            self.zoomFactor = float(self.metadata['Software.SI.hRoiManager.scanZoomFactor'])
+            self.scanAngleMultFast = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierFast"])
+            self.scanAngleMultSlow = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierSlow"])
+            try_zData = True
+        except:
+            try_imageDescription = True
+        # if software, try volumetric data
+        if try_zData:
+            try:
+                self.zVolumes = int(self.metadata["Software.SI.hStackManager.actualNumVolumes"])
+                self.zSlices = int(self.metadata["Software.SI.hStackManager.actualNumSlices"])
+                self.zFlyback = int(self.metadata["Software.SI.hFastZ.numDiscardFlybackFrames"])
+                self.zTotalSlices = int(self.metadata["Software.SI.hStackManager.numFramesPerVolumeWithFlyback"])
+                self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
+                self.movie5d = True
+            except:
+                pass
+        # if not, try image description
+        if try_imageDescription:
+            try:
+                self.frameRate = float(self.metadata["ImageDescription.state.acq.frameRate"])
+                self.zoomFactor = float(self.metadata["ImageDescription.state.acq.zoomFactor"])
+                self.scanAngleMultFast = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierFast"])
+                self.scanAngleMultSlow = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierSlow"])
+                # print("Field of view assumed to be 610, but do check this")
+            except:
+                try_Igor111 = True
+        # if not, try user-igor made
+        # this is from Igor, so it can be any kind, not only imageDescription
+        if try_Igor111:
+            try:
+                self.frameRate = float(self.metadata['Software.SI.hRoiManager.scanFrameRate'])
+                self.zoomFactor = float(self.metadata['Software.SI.hRoiManager.scanZoomFactor'])
+                self.scanAngleMultFast = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierFast"])
+                self.scanAngleMultSlow = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierSlow"])
+                try_Igor111 = False
+                try_zData = True
+            except:
+                pass
+        # if software, try volumetric data
+        if try_zData:
+            try:
+                self.zVolumes = int(self.metadata["Software.SI.hStackManager.actualNumVolumes"])
+                self.zSlices = int(self.metadata["Software.SI.hStackManager.actualNumSlices"])
+                self.zFlyback = int(self.metadata["Software.SI.hFastZ.numDiscardFlybackFrames"])
+                self.zTotalSlices = int(self.metadata["Software.SI.hStackManager.numFramesPerVolumeWithFlyback"])
+                self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
+                self.movie5d = True
+            except:
+                pass
+        # last case
+        if try_Igor111:
+            try:
+                self.frameRate = float(self.metadata["ImageDescription.state.acq.frameRate"])
+                self.zoomFactor = float(self.metadata["ImageDescription.state.acq.zoomFactor"])
+                self.scanAngleMultFast = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierFast"])
+                self.scanAngleMultSlow = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierSlow"])
+            except:
+                raise Exception("\nMetadata info not found\n")
+        if self.movie5d:
+            self.dt = 1/self.zFrameRate
         else:
-            self.get_metadata(x, datatype='ImageDescription')
-            self.movie = raw_movie[0::2]
-        self.nframes = self.movie.shape[0]
-        self.duration = self.nframes/self.frameRate
-        self.mk_stimulus(raw_movie)
-        
+            self.dt = 1/self.frameRate
+            
+    
+    # define system paths 
     def mk_names(self):
         self.fdir = f'{os.path.sep}'.join(self.fpath.split(os.path.sep)[:-1])
         self.fname = self.fpath.split(os.path.sep)[-1].split('.')[0]
@@ -139,107 +201,131 @@ class KS_pipeline:
         else:
             # otherwise, use same dir of movie + python_output
             savedir = os.path.join(self.fdir,'python_output')
-            print(f'couldn\'t find temp folder ({self.tempFolder}). Will try to save files at: {savedir}')
+            print(f'couldn\'t find temp folder ({self.tempFolder}).\nWill save files at: {savedir}\n')
+        # savepath is dir + base filename -- to freely append suffixes later
         self.savepath = os.path.join(savedir,self.fname)
+        if self.movie5d:
+            self.savepath0 = self.savepath
+            self.current_movie = 0
         if not os.path.isdir(savedir):
             os.mkdir(savedir)
-
-
-    # TODO: maybe call get_metadata.py
-    def get_metadata(self, movie, datatype):
-        self.metadata = {}
-        if datatype == 'ImageDescription':
-            try:
-                info = movie.pages[0].tags['ImageDescription'].value.split('\r')
-            except:
-                info = movie.pages[0].tags['111'].value.split('\r')
-                datatype = "Igor_111"
-        if datatype == 'Software':
-            info = movie.pages[0].tags['Software'].value.split('\n')
-        for i in info:
-            if '=' in i:
-                k,v = i.split('=')
-                self.metadata[k.strip()] = v.strip()
-        # ImageDescription data is 'easier'
-        if datatype == 'ImageDescription':
-            self.frameRate = float(self.metadata["state.acq.frameRate"])
-            self.zoomFactor = float(self.metadata["state.acq.zoomFactor"])
-            self.scanAngleMultFast = float(self.metadata["state.acq.scanAngleMultiplierFast"])
-            self.scanAngleMultSlow = float(self.metadata["state.acq.scanAngleMultiplierSlow"])
-            # print("Field of view assumed to be 610, but do check this")
-        elif datatype == 'Software':
-            # Software metadata is more accurate, so no exactly 20hz, for example
-            self.frameRate = round(float(self.metadata['SI.hRoiManager.scanFrameRate']))
-            self.zoomFactor = float(self.metadata['SI.hRoiManager.scanZoomFactor'])
-            self.scanAngleMultFast = float(self.metadata["SI.hRoiManager.scanAngleMultiplierFast"])
-            self.scanAngleMultSlow = float(self.metadata["SI.hRoiManager.scanAngleMultiplierSlow"])
-            try:
-                self.volumes = int(self.metadata["SI.hStackManager.actualNumVolumes"])
-                self.zLayers = int(self.metadata["SI.hStackManager.actualNumSlices"])
-                self.zFlyback = int(self.metadata["SI.hStackManager.actualStackZStepSize"])
-                self.zTotal = int(self.metadata["SI.hStackManager.numFramesPerVolumeWithFlyback"])
-            except:
-                self.volumes = 0
-        elif datatype == 'Igor_111':
-            # this is from Igor, so it can be any kind, not only imageDescription
-            try:
-                self.frameRate = float(self.metadata["ImageDescription.state.acq.frameRate"])
-                self.zoomFactor = float(self.metadata["ImageDescription.state.acq.zoomFactor"])
-                self.scanAngleMultFast = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierFast"])
-                self.scanAngleMultSlow = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierSlow"])
-            except:
-                self.frameRate = round(float(self.metadata['Software.SI.hRoiManager.scanFrameRate']))
-                self.zoomFactor = float(self.metadata['Software.SI.hRoiManager.scanZoomFactor'])
-                self.scanAngleMultFast = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierFast"])
-                self.scanAngleMultSlow = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierSlow"])
+        
+        
+    def deinterleave(self):
+        if self.movie5d:
+            self.totalFrames, channels, lines, cols = self.raw_movie.shape
+            self.raw_movie = self.raw_movie.reshape(self.zTotalSlices, self.zVolumes, channels, lines, cols)
+            self.raw_movie = self.raw_movie[:self.zSlices]
+        # depending on microscope/move type
+        if len(self.raw_movie.shape) == 3:
+            self.channel2 = self.raw_movie[1::2]
+            self.movie = self.raw_movie[0::2]
+        elif len(self.raw_movie.shape) == 4:
+            self.channel2 = self.raw_movie[:,1,:,:]
+            self.movie = self.raw_movie[:,0,:,:]
+        # in this case we have movies, instead of movie
+        elif len(self.raw_movie.shape) == 5 and self.movie5d:
+            self.channel2 = self.raw_movie[0,:,1,:,:]
+            self.movies = self.raw_movie[:,:,0,:,:]
+        # define some vars
+        if self.movie5d:
+            self.nframes = self.zVolumes
+            self.duration = self.nframes/self.zFrameRate
         else:
-            print("\nMetadata type not recognized")
-        self.dt = 1/self.frameRate
+            self.nframes = self.movie.shape[0]
+            self.duration = self.nframes/self.frameRate
 
 
-    # TODO: analysis wave will be here
     # makes steps from linear arr with changing values
-    def mk_stimulus(self, raw_movie, delta=0.05):
+    def mk_stimulus(self, delta=0.05):
         # in some cases, ch2 will be empty
         # like in emily & elliot's movies
         # and the only way to know the stimulus will be to access some file
         # this also applies to any arbitrary segmentation to analyse the data
-        if self.analysisWave:
-            # this is assuming the name of the file is this anWave.txt
-            aewave_txt = os.path.join(self.fdir,"anWave.txt")
-            if not os.path.isfile(aewave_txt):
-                aewave_txt = os.path.join(self.tempFolder,"anWave.txt")
-            # if is not in fdir or in temp, then raise error
-            if not os.path.isfile(aewave_txt):
-                raise FileNotFoundError("Couldn't find anWave.txt file")
-            with open(aewave_txt, "r") as f:
-                awave = f.read()
-            # self.stimulus = np.array(awave.split('\n')[:-1], dtype=int)
-            self.stimulus = np.array(awave.splitlines(), dtype=int)
+        path_to_anWave = os.path.join(self.fdir,"anWave.txt")
+        temp_path_to_anWave = os.path.join(self.tempFolder,"anWave.txt")
+        # in case is passed directly as argument
+        if isinstance(self.anWave_array,np.ndarray):
+            self.stimulus = self.anWave_array
+            self.analysisWave = True
+        elif os.path.isfile(path_to_anWave) and self.analysisWave:
+            self.stimulus = np.loadtxt(path_to_anWave)
+        elif os.path.isfile(temp_path_to_anWave) and self.analysisWave:
+            self.stimulus = np.loadtxt(temp_path_to_anWave)
         else:
-            # make stimulus array (depending on microscope)
-            if len(raw_movie.shape) == 4:
-                self.stimulus = raw_movie[:,1,:,:].mean(axis=(1,2))
-            # in this case every layer should use the same stimulus
-            elif len(raw_movie.shape) == 5:
-                self.stimulus = raw_movie[:,0,1,:,:].mean(axis=(1,2))
-            else:
-                self.stimulus = raw_movie[1::2].mean(axis=(1,2))
-        # normalize
-        if self.stimulus.max() > 5:
-            self.stimulus = self.stimulus/self.stimulus.max()
-        # in theory there's no capture of signal t=0
-        # so array should go from 0.05 to t_f
-        # i'm making 0 to (t_f - 0.05), for simplicity
-        # but it should be the other way
+            self.stimulus = self.channel2.mean(axis=(1,2))
+            # normalize (only if auto, because of the high values)
+            if self.stimulus.max() > 5:
+                self.stimulus = self.stimulus/self.stimulus.max()
+        # stimulus as a function of time
         self.stimulus2d = np.zeros((2,self.nframes))
-        self.stimulus2d[0] = np.arange(self.nframes)/self.frameRate
+        if self.movie5d:
+            self.stimulus2d[0] = np.arange(self.nframes)/self.zFrameRate    
+        else:
+            self.stimulus2d[0] = np.arange(self.nframes)/self.frameRate
         self.stimulus2d[1] = self.stimulus
         if self.igor:
             # tf.imwrite(f'{self.savepath}_stimulus.tif', self.stimulus2d)
             # np.savetxt(f'{self.savepath}_stimulus2d.csv', self.stimulus2d, delimiter=",")
             df = pd.DataFrame({'time': self.stimulus2d[0], 'intensity': self.stimulus})
             df.to_csv(f'{self.savepath}_stimulus.csv', index=False)
+        else:
+            plt.plot(*self.stimulus2d)
+            plt.title("stimulus")
+            plt.show()
+            
+            
+    # decouple baseline & activity
+    # delta: threshold to count as deviation from baseline
+    # post_window: time window considered as potentially active (not baseline)
+    def stim_transitions(self,delta=0.01,post_window=500):
+        # get approx mean for comparison
+        bval = self.stimulus[1:10].mean()
+        # replace val at ~ t=0 (first window), to avoid artifacts
+        self.stimulus[0] = bval
+        self.baseline = np.where(abs(self.stimulus-bval) <= bval*delta, 0, 1)
+        # for the analysis wave this isn't necessary
+        if not self.analysisWave:
+            # wx: window after which, even if baseline, signals reflect activity
+            # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
+            wx = int(self.frameRate * post_window/1000)
+            # bis: points where baseline/resting intervals start (skips t=0)
+            # if x(t)=rest=0 - x(t-1)=act=1 = -1 => from act to rest
+            bis = np.where(self.baseline-np.roll(self.baseline,1)==-1)[0]
+            # discard post activity windows
+            for bi in bis:
+                self.baseline[bi:bi+wx] = 1
+        # remaining points are baseline/rest indices
+        self.baseline_idxs = np.where(self.baseline==0)[0]
+        self.activity_idxs = self.baseline.nonzero()[0]
+        if not self.igor:
+            baseline = np.zeros(self.baseline.shape)
+            baseline[self.baseline_idxs] = 1
+            plt.plot(baseline)
+            plt.title("baseline idxs")
+            plt.show()
+            activity = np.zeros(self.baseline.shape)
+            activity[self.activity_idxs] = 1
+            plt.title("activity idxs")
+            plt.plot(activity)
+            plt.show()
+
+
+    # preprocessing
+    # added this to handle 5d movies
+    def preprocessing(self):
+        if self.movie5d:
+            for i in range(len(self.movies)):
+                self.current_movie = i
+                self.movie = self.movies[i].copy()
+                self.register()
+                self.interpolate_square()
+                self.correction()
+                self.movies[i] = self.movie.copy()
+        else:
+            self.register()
+            self.interpolate_square()
+            self.correction()
 
 
     # i'm leaving this as independent in case we want
@@ -260,36 +346,13 @@ class KS_pipeline:
         # to avoid inheritance problems
         self.movie = movie_reg.copy()
         if self.igor:
-            self.savepath += '_reg'
+            if self.movie5d:
+                self.savepath += '{self.current_movie}_reg'
+            else:
+                self.savepath += '_reg'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
 
 
-    # this was working in the previous version
-    # it needs fixing now, or remaking
-    # i'm leaving it only in case someone wants to experiment later
-    def interpolate(self):
-        # interpolates to make it squared (x = 128)
-        zoom_ratio = self.movie.shape[2]/self.movie.shape[1]
-        # order 1: bilinear
-        self.movie = zoom(self.movie, zoom=(1,zoom_ratio,1), order=1)
-        self.nrows, self.ncols = self.movie.shape[1:]
-        # pixel size
-        self.pixelSize = self.fov/self.nrows/self.zoomFactor
-        # not used
-        self.or_nrows, self.or_ncols = self.movie.shape[1:]
-        self.movieSize_x = self.fov / self.zoomFactor * self.scanAngleMultFast
-        self.movieSize_y = self.fov / self.zoomFactor * self.scanAngleMultSlow
-        self.pixel_sx = self.movieSize_x / self.or_ncols
-        self.pixel_sy = self.movieSize_y / self.or_nrows
-        self.pixelSize_x = self.movieSize_x / self.ncols
-        self.pixelSize_y = self.movieSize_y / self.nrows
-        # save
-        if self.igor:
-            self.savepath += '_int'
-            tf.imwrite(f'{self.savepath}.tif', self.movie)
-
-
-    # TODO: for now only the upscaling is working
     # it's upscaling because we're increasing the number of pixels in some axis
     # rather than an interpolatetion, it's making the pixels squared 
     # so it is a pixel aspect ratio correction (or anisotropic resample)
@@ -390,6 +453,9 @@ class KS_pipeline:
         if self.igor:
             self.savepath += '_bc'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
+            if self.movie5d:
+                self.savepath = self.savepath0
+                self.current_movie += 1
     
     # correct for the bleaching of glutamate
     def bleach_correction(self,rescale=True,concat=False):
@@ -416,9 +482,11 @@ class KS_pipeline:
             if not concat:
                 self.savepath += '_bc'
                 tf.imwrite(f'{self.savepath}.tif', self.movie)
+            if self.movie5d:
+                self.savepath = self.savepath0
 
 
-    # TODO: incorporate synapse size from Igor?
+
     # define the radius for 2d gaussian demixing
     def define_roi_size(self):
         # how many pixels per synapse + round it up, because most likely
@@ -430,27 +498,49 @@ class KS_pipeline:
             self.min_distance = int(self.roi_radius) + 1
 
 
-    # decouple baseline & activity
-    # delta: threshold to count as deviation from baseline
-    # post_window: time window considered as potentially active (not baseline)
-    def stim_transitions(self,delta=0.01,post_window=500):
-        # get approx mean for comparison
-        bval = self.stimulus[1:10].mean()
-        # replace val at ~ t=0 (first window), to avoid artifacts
-        self.stimulus[0] = bval
-        self.baseline = np.where(abs(self.stimulus-bval) <= bval*delta, 0, 1)
-        # wx: window after which, even if baseline, signals reflect activity
-        # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
-        wx = int(self.frameRate * post_window/1000)
-        # bis: points where baseline/resting intervals start (skips t=0)
-        # if x(t)=rest=0 - x(t-1)=act=1 = -1 => from act to rest
-        bis = np.where(self.baseline-np.roll(self.baseline,1)==-1)[0]
-        # discard post activity windows
-        for bi in bis:
-            self.baseline[bi:bi+wx] = 1
-        # remaining points are baseline/rest indices
-        self.baseline_idxs = np.where(self.baseline==0)[0]
-        self.activity_idxs = self.baseline.nonzero()[0]
+    # same as before, this function is here
+    # to handle 5d movie cases
+    def find_rois(self):
+        if self.movie5d:
+            self.movies_deltaf_maps, self.movies_deltaf_peaks = [], []
+            self.movies_ks_peaks, self.movies_synapses = [], []
+            self.movies_pixel_masks, self.movies_roi_masks = [], []
+            self.movies_gs_amps = []
+            self.movies_dff_traces = []
+            # numpy can be tricky with inheritance 
+            # so i prefer to do .copy() for these
+            for i in range(len(self.movies)):
+                self.movie = self.movies[i].copy()
+                self.current_movie = i
+                # get candidates from ∆F peak values
+                self.mk_deltaf_map()
+                self.movies_deltaf_maps.append(self.deltaf_map.copy())
+                self.movies_deltaf_peaks.append(self.deltaf_peaks.copy())
+                # evaluate candidates using KS
+                self.ks_distance()
+                self.movies_ks_peaks.append(self.ks_peaks.copy())
+                self.movies_synapses.append(self.synapses.copy())
+                self.movies_pixel_masks.append(self.synapses_mask_pixels.copy())
+                self.movies_roi_masks.append(self.synapses_mask_rois.copy())
+                # check in case no ROIs were found
+                if isinstance(self.synapses, np.ndarray):
+                    # demix ROIs using 2d gaussians
+                    self.ridge_demixing()
+                    self.movies_gs_amps.append(self.gs_amps.copy())
+                    # get ROIs signals (∆F/F traces)
+                    self.compute_dff_traces()
+                    self.movies_dff_traces.append(self.dff_traces.copy())
+                else:
+                    self.movies_gs_amps.append([])
+                    self.movies_dff_traces.append([])
+                if not self.igor:
+                    print(f'movie {i}: candidate peaks = {len(self.deltaf_peaks)}, significant = {len(self.synapses)}')
+        else:
+            self.mk_deltaf_map()
+            self.ks_distance()
+            if isinstance(self.synapses, np.ndarray):
+                self.ridge_demixing()
+                self.compute_dff_traces()
 
 
     # TODO: is percentile the best threshold abs?
@@ -470,9 +560,10 @@ class KS_pipeline:
 
 
     # KS between ROIs (baseline vs activity)
-    # Benjamini-Hochberg FDR
     def ks_distance(self):
         self.ks_peaks = []
+        self.synapses_mask_pixels = []
+        self.synapses_mask_rois = []
         # meshgrid for rows and cols
         yy, xx = np.indices((self.nrows, self.ncols))
         # make ROIs from pixels
@@ -493,30 +584,33 @@ class KS_pipeline:
         # ks peaks = [y0, x0, dff, ks dist, ks pval]
         # sort by p-vals
         self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[-1]))
-        # in case there's no
+        # in case there's no peaks detected
         if len(self.ks_peaks) == 0:
-            self.skip_ks = True
             self.synapses = []
-            return
-        # threshold line
+            if self.movie5d:
+                print('\nno peaks found\n')
+                return
+            else:
+                raise Exception("\nNo peaks found\n")
+        if not self.igor:
+            plt.imshow(self.deltaf_map, cmap='gray')
+            plt.scatter(*self.deltaf_peaks[:, ::-1].T, color='red')
+            plt.title(f"movie {self.current_movie}: {len(self.deltaf_peaks)} peaks found")
+            plt.show()
+        # regular alpha thresholding
         pvals = self.ks_peaks[:,-1]
-        m = len(pvals)
-        th_line = self.alpha * np.arange(1, m+1)/m
-        significant = pvals <= th_line
-        # check
+        significant = np.where(pvals < self.alpha)[0]
+        # in case there's no synapses found
         if not np.any(significant):
-            # raise Exception ('\nNo significative peaks found\n')
-            print('\nNo significant peaks found\n')
             self.synapses = []
-            return
-
+            if self.movie5d:
+                return
+            else:
+                raise Exception ('\nNo significative peaks found\n')
         # remove non significant
-        max_i = np.where(significant)[0].max()
-        p_cutoff = pvals[max_i]
-        # keep rows whose p-value is under BH cutoff
-        self.ks_peaks = self.ks_peaks[pvals <= p_cutoff]
+        self.ks_peaks = self.ks_peaks[significant]
         # sort by ΔF/F and keep coords only (row, col, df/f, ks-d, ks-p)
-        self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[4], reverse=False))
+        self.ks_peaks = np.array(sorted(self.ks_peaks, key=lambda x:x[2], reverse=False))
         self.synapses = self.ks_peaks[:,:2].astype(int)
         # masked 2d arrays for synapses
         self.synapses_mask_pixels = np.full(self.movie.shape[1:], 1, dtype=np.int16)
@@ -527,48 +621,16 @@ class KS_pipeline:
             disk = ((yy-row)**2 + (xx-col)**2) <= self.roi_radius**2
             free = disk & (self.synapses_mask_rois == 1)
             self.synapses_mask_rois[free] = val
-
-        # export data
-        if self.igor:
-            dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
-            dfx.to_csv(f'{self.savepath}_synapses_data.csv')
-            tf.imwrite(f'{self.savepath}_pixelmask.tif', self.synapses_mask_pixels)
-            tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask_rois)
-        # txt info
-        if self.igor:
-            f = open(f'{self.savepath}_info.txt', 'w')
-            f.write(f'movie={self.savepath}\n')
-            # input from Igor
-            f.write(f'fov={self.fov}\n')
-            f.write(f'alpha={self.alpha}\n')
-            f.write(f'roiSize={self.synapseSize}\n')
-            f.write(f'minDist={self.min_distance}\n')
-            # processing parameters
-            f.write(f'nframes={self.nframes}\n')
-            f.write(f'frameRate={self.frameRate}\n')
-            f.write(f'duration={self.duration}\n')
-            f.write(f'dt={self.dt}\n')
-            f.write(f'zoomFactor={self.zoomFactor}\n')
-            f.write(f'scanAngleMultFast={self.scanAngleMultFast}\n')
-            f.write(f'scanAngleMultSlow={self.scanAngleMultSlow}\n')
-            f.write(f'fov_x={self.fovx}\n')
-            f.write(f'fov_y={self.fovy}\n')
-            f.write(f'orig_ncols={self.or_ncols}\n')
-            f.write(f'orig_nrows={self.or_nrows}\n')
-            f.write(f'orig_pixelSize_x={self.px}\n')
-            f.write(f'orig_pixelSize_y={self.py}\n')
-            f.write(f'nRows={self.nrows}\n')
-            f.write(f'nCols={self.ncols}\n')
-            f.write(f'pixelSize_x={self.px_sq}\n')
-            f.write(f'pixelSize_y={self.py_sq}\n')
-            f.write(f'pixelSize_av={self.pixelSize}\n')
-            f.write(f'roiRadius={self.roi_radius}\n')
-            f.write(f'nsynapses={self.synapses.shape[0]}')
-            f.close()
+        if not self.igor:
+            plt.imshow(self.deltaf_map, cmap='gray')
+            plt.scatter(*self.synapses[:, ::-1].T, color='red')
+            plt.title(f"movie {self.current_movie}: {len(self.synapses)} significant peaks")
+            plt.show()
 
 
     # TODO: using a single bounding box for demixing all together is expensive
-    # it may be faster to make many, but i'm not sure how
+    # it may be faster to make clusters/groups of closeby rois to demix
+    # the function splitting should be quickto be worthy though
     # TODO: may be useful to find a good lambda reg before demixing
     # returns the scalar amplitude per synapse & per frame, across movie
     # it returns a value for the entire 2d synapse (amplitude)
@@ -637,17 +699,108 @@ class KS_pipeline:
             tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
 
 
+    # save results & make plots
+    def export_data(self):
+        if self.igor:
+            if self.movie5d:
+                for i in range(len(self.movies)):
+                    if len(self.ks_peaks) > 0:
+                        dfx = pd.DataFrame(self.movies_ks_peaks[i], columns=["row","col","dF/F","ks-d","ks-p"])
+                    if len(self.synapses) > 0:
+                        dfx.to_csv(f'{self.savepath}_synapses_data{i}.csv')
+                        tf.imwrite(f'{self.savepath}_pixelmask{i}.tif', self.movies_pixel_masks[i])
+                        tf.imwrite(f'{self.savepath}_roimask{i}.tif', self.movies_roi_masks[i])
+            else:
+                dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
+                dfx.to_csv(f'{self.savepath}_synapses_data.csv')
+                tf.imwrite(f'{self.savepath}_pixelmask.tif', self.synapses_mask_pixels)
+                tf.imwrite(f'{self.savepath}_roimask.tif', self.synapses_mask_rois)
+        # txt info
+        if self.igor:
+            f = open(f'{self.savepath}_info.txt', 'w')
+            f.write(f'movie={self.savepath}\n')
+            # input from Igor
+            f.write(f'fov={self.fov}\n')
+            f.write(f'alpha={self.alpha}\n')
+            f.write(f'roiSize={self.synapseSize}\n')
+            f.write(f'minDist={self.min_distance}\n')
+            # volumetric data
+            if self.movie5d:
+                f.write(f'slices={self.zSlices}\n')
+                f.write(f'discardedSlices={self.zFlyback}\n')
+                f.write(f'totalSlices={self.zTotalSlices}\n')
+                f.write(f'framesPerSlice={self.zVolumes}\n')
+                f.write(f'sliceFrameRate={self.zFrameRate}\n')
+                # this is for Igor access to this data
+                f.write(f'frameRate={self.zFrameRate}\n')
+                f.write(f'totalFrameRate={self.frameRate}\n')
+                f.write(f'nFrames={self.zVolumes}\n')
+                f.write(f'totalFrames={self.totalFrames}\n')
+            else:
+                f.write(f'frameRate={self.frameRate}\n')
+                f.write(f'nFrames={self.nframes}\n')
+            # remaining processing parameters
+            f.write(f'duration={self.duration}\n')
+            f.write(f'dt={self.dt}\n')
+            f.write(f'zoomFactor={self.zoomFactor}\n')
+            f.write(f'scanAngleMultFast={self.scanAngleMultFast}\n')
+            f.write(f'scanAngleMultSlow={self.scanAngleMultSlow}\n')
+            f.write(f'fov_x={self.fovx}\n')
+            f.write(f'fov_y={self.fovy}\n')
+            f.write(f'orig_ncols={self.or_ncols}\n')
+            f.write(f'orig_nrows={self.or_nrows}\n')
+            f.write(f'orig_pixelSize_x={self.px}\n')
+            f.write(f'orig_pixelSize_y={self.py}\n')
+            f.write(f'nRows={self.nrows}\n')
+            f.write(f'nCols={self.ncols}\n')
+            f.write(f'pixelSize_x={self.px_sq}\n')
+            f.write(f'pixelSize_y={self.py_sq}\n')
+            f.write(f'pixelSize_av={self.pixelSize}\n')
+            f.write(f'roiRadius={self.roi_radius}\n')
+            if self.movie5d:
+                for i in range(len(self.movies)):
+                    f.write(f'nSynapses{i}={self.synapses.shape[0]}')
+            else:
+                f.write(f'nSynapses={self.synapses.shape[0]}')
+            f.close()
+
+
+
+
+
+    def mk_figures(self):
+        if self.movie5d:
+            for i in range(len(self.movies)):
+                self.current_movie = i
+                self.synapses = self.movies_synapses[i]
+                if isinstance(self.synapses, np.ndarray):
+                    if self.igor:
+                        self.plot_synapses()
+                        self.movie = self.movies[i]
+                        self.overlay_synapses()
+                    else:
+                        self.plot_synapses(title=f'movie {i}')
+                        self.dff_traces = self.movies_dff_traces[i]
+                        self.plot_raster(title=f'movie {i}')
+                        self.plot_traces(title=f'movie {i}')
+        else:
+            if isinstance(self.synapses, np.ndarray):
+                self.plot_synapses()
+                self.overlay_synapses()
+                if not self.igor:
+                    self.plot_raster()
+                    self.plot_traces()
+
+
     # TODO: kwargs to scatter
     # th_vmin & th_vmax are the percentiles defining contrast for imshow
     # (to avoid 1 or 2 very bright pixels to mess up the scale)
     # imshow with sorted synapses
-    def plot_synapses(self, th_vmin=5, th_vmax=99):
+    def plot_synapses(self, th_vmin=5, th_vmax=99, title=""):
         vmin = np.percentile(self.deltaf_map, th_vmin)
         vmax = np.percentile(self.deltaf_map, th_vmax)
         plt.imshow(self.deltaf_map, cmap='gray', vmin=vmin, vmax=vmax)
         plt.axis('off')
-        # if self.igor:
-        #     plt.savefig(f'{self.savepath}_deltaf', dpi=100, bbox_inches='tight', pad_inches=0)
         # plot synapses
         for ei,(sy,sx) in enumerate(self.synapses):
             # s: typographic points ** 2 & typographic points = 1/72 inches.
@@ -664,6 +817,7 @@ class KS_pipeline:
             plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
             tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map.astype(np.float32))
         else:
+            plt.title(title)
             plt.show()
 
 
@@ -767,14 +921,12 @@ class KS_pipeline:
     def plot_traces(self, n=5, title=''):
         f, (a0,a1) = plt.subplots(2,1, gridspec_kw={'height_ratios': [1,7]})
         # for traces in seconds
-        t = np.linspace(0,self.dff_traces[0].size/self.frameRate,self.dff_traces[0].size)
-        a0.plot(t,self.stimulus)
+        a0.plot(*self.stimulus2d)
         a0.set_xlim(xmin=0, xmax=self.duration)
         a0.set_xticks([])
         a0.set_yticks([])
-        for ni in range(n):
-            a1.plot(t,self.dff_traces[ni])
-        # a1.set_ylim(ymax=0, ymin=locs.shape[0]-1)
+        for ni in range(min(n,len(self.dff_traces))):
+            a1.plot(self.stimulus2d[0],self.dff_traces[ni])
         a1.set_xlim(xmin=0, xmax=self.duration)
         # a1.set_xticks(np.arange(0,self.stimulus.size+1,100))
         # a1.set_yticks(np.arange(0,locs.shape[0],5))
@@ -793,8 +945,7 @@ class KS_pipeline:
     def plot_raster(self, title=''):
         f, (a0,a1) = plt.subplots(2,1, gridspec_kw={'height_ratios': [1,7]})
         # for traces in seconds
-        t = np.linspace(0,self.dff_traces[0].size/self.frameRate,self.dff_traces[0].size)
-        a0.plot(t,self.stimulus)
+        a0.plot(*self.stimulus2d)
         a0.set_xlim(xmin=0, xmax=self.duration)
         a0.set_xticks([])
         a0.set_yticks([])
@@ -804,8 +955,20 @@ class KS_pipeline:
         a1.imshow(self.dff_traces, aspect='auto', cmap='gray',
                   vmin=-vmax,vmax=vmax,
                   extent=[0,self.duration,0,self.dff_traces.shape[0]])
-        # a1.set_xticks(np.arange(0,self.stimulus.size+1,100))
-        # a1.set_yticks(np.arange(0,locs.shape[0],5))
+        # x ticks (time)
+        a1.set_xticks(np.arange(0,self.duration+1,int(self.duration/10)))
+        # y ticks need to be inverted (from best to worst)
+        # also ticks are placed in n + 0.5 positions
+        # to better align with the traces
+        # ticks = np.append(np.arange(0,len(self.dff_traces),0.5),len(self.dff_traces))
+        # ticks = ticks[::-1]
+        # ticks = np.where(ticks[::-1]%1,ticks,0)
+        # a1.set_yticklabels(["" if x==0 else int(x) for x in ticks])
+        n_synapses = len(self.dff_traces)
+        ticks = np.arange(n_synapses) + 0.5        
+        a1.set_yticks(ticks)
+        a1.set_yticklabels(np.arange(n_synapses -1, -1, -1))
+        # labels
         a1.set_ylabel("synapses")
         a1.set_xlabel("seconds")
         plt.suptitle(title)
@@ -814,6 +977,7 @@ class KS_pipeline:
             plt.savefig(f'{self.savepath}_rasterplot.png')
         else:
             plt.show()
+            # import pdb; pdb.set_trace()
 
     # quick stimulus plot
     def plot_stimulus(self):
@@ -829,55 +993,59 @@ class KS_pipeline:
         plt.show()
 
 
+anWave = np.zeros(600)
+anWave[120:360] = 1
+fpath = "/Users/f/Dropbox/_r66y/data/2p_data/demoMovies/new_movies/AFx_s7_ss5_50lines_L60Mw_00001.tif"
+KS_pipeline(fpath, analysisWave_array=anWave)
 
 # to run from terminal
-if __name__ == "__main__":
-    path_to_movie = sys.argv[1]
-    # default values, these are defined from Igor
-    fov = 610
-    alpha = 0.05
-    min_distance = 3
-    synapse_size = 2
-    concat = ""                 # has to be changed for concatenated movies
-    tempFolder = ""             # dir for files and outputs
-    analysisWave = False        # stimulus/analysis wave 
-    mk_videos = False           # overlay and overlay + stimulus
-    igor = True                 # mostly for debugging
-    # look for arguments
-    for ei,arg in enumerate(sys.argv):
-        # these can be changed from panel in Igor
-        if arg.startswith('--fov='):
-            fov = float(arg.split('=')[1])
-        if arg.startswith('--alpha='):
-            alpha = float(arg.split('=')[1])
-        if arg.startswith('--minDist='):
-            min_distance = float(arg.split('=')[1])
-        if arg.startswith('--ROIsize='):
-            synapse_size = float(arg.split('=')[1])
-        if arg.startswith('--concat'):
-            concat = str(arg.split('=')[1])
-        if arg.startswith('--tempFolder'):
-            tempFolder = str(arg.split('=')[1])
-        if arg.startswith('--anwave'):
-            analysisWave = True
-        if arg == '--mk-videos':
-            mk_videos = True
-        # can be changed from terminal
-        if arg == '--not-igor':
-            igor = False
-    # check if required libs are installed
-    check_dependencies()
-    x = KS_pipeline(fpath=path_to_movie,
-        fov=fov,
-        alpha=alpha,
-        min_distance=min_distance,
-        synapse_size=synapse_size,
-        concat=concat,
-        tempFolder=tempFolder,
-        analysisWave=analysisWave,
-        mk_videos=mk_videos,
-        igor=igor,
-        )
+# if __name__ == "__main__":
+#     path_to_movie = sys.argv[1]
+#     # default values, these are defined from Igor
+#     fov = 610
+#     alpha = 0.05
+#     min_distance = 3
+#     synapse_size = 2
+#     concat = ""                 # has to be changed for concatenated movies
+#     tempFolder = ""             # dir for files and outputs
+#     analysisWave = False        # stimulus/analysis wave 
+#     mk_videos = False           # overlay and overlay + stimulus
+#     igor = True                 # mostly for debugging
+#     # look for arguments
+#     for ei,arg in enumerate(sys.argv):
+#         # these can be changed from panel in Igor
+#         if arg.startswith('--fov='):
+#             fov = float(arg.split('=')[1])
+#         if arg.startswith('--alpha='):
+#             alpha = float(arg.split('=')[1])
+#         if arg.startswith('--minDist='):
+#             min_distance = float(arg.split('=')[1])
+#         if arg.startswith('--ROIsize='):
+#             synapse_size = float(arg.split('=')[1])
+#         if arg.startswith('--concat'):
+#             concat = str(arg.split('=')[1])
+#         if arg.startswith('--tempFolder'):
+#             tempFolder = str(arg.split('=')[1])
+#         if arg.startswith('--anwave'):
+#             analysisWave = True
+#         if arg == '--mk-videos':
+#             mk_videos = True
+#         # can be changed from terminal
+#         if arg == '--not-igor':
+#             igor = False
+#     # check if required libs are installed
+#     check_dependencies()
+#     x = KS_pipeline(fpath=path_to_movie,
+#         fov=fov,
+#         alpha=alpha,
+#         min_distance=min_distance,
+#         synapse_size=synapse_size,
+#         concat=concat,
+#         tempFolder=tempFolder,
+#         analysisWave=analysisWave,
+#         mk_videos=mk_videos,
+#         igor=igor,
+#         )
 
 
 
