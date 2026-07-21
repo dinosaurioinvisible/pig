@@ -383,7 +383,7 @@ function button_runKS(ba) : ButtonControl
 		case -1: // control being killed
 			break
 	endswitch
-
+	
 	return 0
 end
 

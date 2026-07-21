@@ -680,7 +680,7 @@ class KS_pipeline:
         if self.igor:
             # the transposition is just for visualization
             if self.movie5d:
-                np.savetxt(f'{self.savepath}_gs_amps{self.current_movie}.csv', self.gs_amps.T, delimiter=',')
+                np.savetxt(f'{self.savepath}_z{self.current_movie}_gs_amps.csv', self.gs_amps.T, delimiter=',')
             else:
                 np.savetxt(f'{self.savepath}_gs_amps.csv', self.gs_amps.T, delimiter=',')
 
@@ -699,7 +699,7 @@ class KS_pipeline:
         # save
         if self.igor:
             if self.movie5d:
-                tf.imwrite(f'{self.savepath}_dff_traces{self.current_movie}.tif', self.dff_traces)
+                tf.imwrite(f'{self.savepath}_z{self.current_movie}_dff_traces.tif', self.dff_traces)
             else:
                 tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
 
@@ -712,9 +712,9 @@ class KS_pipeline:
                     if len(self.movies_ks_peaks[i]) > 0:
                         dfx = pd.DataFrame(self.movies_ks_peaks[i], columns=["row","col","dF/F","ks-d","ks-p"])
                     if len(self.movies_synapses[i]) > 0:
-                        dfx.to_csv(f'{self.savepath}_synapses_data{i}.csv')
-                        tf.imwrite(f'{self.savepath}_pixelmask{i}.tif', self.movies_pixel_masks[i])
-                        tf.imwrite(f'{self.savepath}_roimask{i}.tif', self.movies_roi_masks[i])
+                        dfx.to_csv(f'{self.savepath}_z{i}_synapses_data.csv')
+                        tf.imwrite(f'{self.savepath}_z{i}_pixelmask.tif', self.movies_pixel_masks[i])
+                        tf.imwrite(f'{self.savepath}_z{i}_roimask.tif', self.movies_roi_masks[i])
                     # import pdb; pdb.set_trace()
             else:
                 dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
@@ -822,8 +822,9 @@ class KS_pipeline:
             # remove all margins (that's why synapses maps is using plt.savefig)
             plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
             if self.movie5d:
-                tf.imwrite(f'{self.savepath}_deltaf{self.current_movie}.tif', self.deltaf_map.astype(np.float32))
-                plt.savefig(f'{self.savepath}_synapses_map{self.current_movie}.png', dpi=100, bbox_inches='tight', pad_inches=0)
+                # tf.imwrite(f'{self.savepath}_deltaf{self.current_movie}.tif', self.deltaf_map.astype(np.float32))
+                tf.imwrite(f'{self.savepath}_z{self.current_movie}_deltaf.tif', self.movies_deltaf_maps[self.current_movie].astype(np.float32))
+                plt.savefig(f'{self.savepath}_z{self.current_movie}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
             else:
                 tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map.astype(np.float32))
                 plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
@@ -862,7 +863,7 @@ class KS_pipeline:
         # save
         if self.igor:
             if self.movie5d:
-                tf.imwrite(f'{self.savepath}_overlay{self.current_movie}.tif', overlay)
+                tf.imwrite(f'{self.savepath}_z{self.current_movie}_overlay.tif', overlay)
             else:
                 tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             if self.mk_videos:
@@ -974,10 +975,6 @@ class KS_pipeline:
         # y ticks need to be inverted (from best to worst)
         # also ticks are placed in n + 0.5 positions
         # to better align with the traces
-        # ticks = np.append(np.arange(0,len(self.dff_traces),0.5),len(self.dff_traces))
-        # ticks = ticks[::-1]
-        # ticks = np.where(ticks[::-1]%1,ticks,0)
-        # a1.set_yticklabels(["" if x==0 else int(x) for x in ticks])
         n_synapses = len(self.dff_traces)
         ticks = np.arange(n_synapses) + 0.5        
         a1.set_yticks(ticks)

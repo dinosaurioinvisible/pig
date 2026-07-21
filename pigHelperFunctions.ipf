@@ -19,24 +19,6 @@
 // itemsInList
 
 
-// have to check this
-function splitZmovies(wave movie, variable zSlices, variable zLayers, variable zVolumes)
-	string basename = nameOfWave(movie)
-	variable framesPerMovie = 180
-	variable nMovies = 11
-	variable i
-	for (i = 0; i < nMovies; i += 1)
-		variable startFrame = i * framesPerMovie
-		variable endFrame = startFrame + framesPerMovie - 1
-		string newName = basename + "_" + num2str(i+1)
-		Duplicate/O/RMD=[][][startFrame, endFrame] movie, $newName
-		// fix time scaling
-		CopyScales movie, $newName
-		SetScale/P z, startFrame * DimDelta(movie, 2), DimDelta(movie, 2), WaveUnits(movie, 2), $newName
-		print "created: " + newName
-	endfor
-end
-
 
 // fix issue when loading tif RGB movies
 // swap (wrong) layers into channels (RGB channels)

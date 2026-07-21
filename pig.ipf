@@ -32,12 +32,13 @@
 // different kinds of loading fxs
 // 9. pigLoadMovie
 // 10. pigMultiLoad
-// 11. pigLoadAnalysisWave
-// 12. pigLoadAndRemoveTempFolder
+// 11. pigLoad5dMovie
+// 12. pigLoadAnalysisWave
+// 13. pigLoadAndRemoveTempFolder
 
 // more complex running functions
-// 13. pigRun
-// 14. pigRunKS 
+// 14. pigRun
+// 15. pigRunKS 
 
 
 
@@ -328,19 +329,7 @@ function pigLoadMovie()
 	moveWave $stimulusWaveDefault, $stimulusWaveCh2res
 	// ch2res makes 1d wave, so has to be scaled in x
 	setscale/p x, 0, dt,"s",$stimulusWaveCh2res
-	
-	// for 4D movies (slices=useful, layers=slices + flyback, volumes=nframe per slice)
-	variable zSlices = numberBykey("Software.SI.hStackManager.actualNumSlices",note($movieName),"=","\r")
-	variable zLayers = numberBykey("Software.SI.hStackManager.numFramesPerVolumeWithFlyBack",note($movieName),"=","\r")
-	variable zVolumes = numberBykey("Software.SI.hStackManager.actualNumVolumes",note($movieName),"=","\r")
-	// 0:normal, 1:nan, 2:inf
-	variable check4d = zSlices + zLayers + zVolumes
-	if (numtype(check4D) != 0)
-		wave movie = $movieName
-		wave movie4D = splitZmovies(movie, zSlices, zLayers, zVolumes)
-	endif
-	
-	
+
 	print "\nloaded movie from: "+fpath
 end
 
@@ -528,12 +517,117 @@ function pigMultiLoad()
 	// string stimName0 = basename + "_ch2"
 	string stimName0 = multiname0 + "_ch2"
 	rename $stimName, $stimName0
-	// change name to main movie
-	
+	// change name to main movie	
 end
 
 
 // 11.
+// to organize layered/volumetric python output
+function pigOrganize5dMovieData(wave movie5d) 
+	// basically there are 3 locations for
+	// 1) the movie, 2) the slices 3) new folder to move the slices in
+	string movieName = nameOfWave(movie5d)
+	string moviePath = getWavesDataFolder(movie5d,2)
+	// because we have moved into the KS results folder
+	string ksMoviePath = getDataFolder(1)
+	print(ksMoviePath)
+	string basename = stringByKey("basename",note(movie5d),"=","\r")
+	print(basename)
+	variable dt = numberByKey("dt",note(movie5d),"=","\r")
+	string wx_info = note(movie5d)
+	// iterate through loaded data
+	variable i
+	variable zSlices = numberBykey("Software.SI.hStackManager.actualNumSlices",note(movie5d),"=","\r")
+	for (i = 0; i < zSlices; i += 1)
+		// make folder		
+		string newFolderPath = ksMoviePath + basename + "_z" + num2str(i)
+		newDataFolder/o $newFolderPath
+		
+		// copy scales, copy notes & move movies
+		string wz = basename + "_z" + num2str(i)
+		// reg
+		string wz_reg = wz + "_reg"
+		copyScales movie5d, $wz_reg
+		setscale/p z, 0,  dt, "s", $wz_reg
+		note $wz_reg, wx_info
+		moveWave $wz_reg, $(newFolderPath + ":" + wz_reg)
+		// isq
+		string wz_isq = wz_reg + "_isq"
+		copyScales movie5d, $wz_isq
+		setscale/p z, 0,  dt, "s", $wz_isq
+		note $wz_isq, wx_info
+		moveWave $wz_isq, $(newFolderPath + ":" + wz_isq)
+		// bc
+		string wz_bc = wz_isq + "_bc"
+		copyScales movie5d, $wz_bc
+		setscale/p z, 0,  dt, "s", $wz_bc
+		note $wz_bc, wx_info
+		moveWave $wz_bc, $(newFolderPath + ":" + wz_bc)
+		
+		// check if if other files exist & do the same
+		string wx = basename + "_z" + num2str(i)
+		// deltaf
+		string wx_df = wx + "_deltaf"
+		// skip to next iteration if it doesn't exist
+		// assuming the other files don't exist either
+		if (!waveExists($wx_df))
+			continue
+		endif
+		copyscales movie5d, $wx_df
+		note $wx_df, wx_info
+		moveWave $wx_df, $(newFolderPath + ":" + wx_df)
+		// masks and map of synapses
+		string wx_pm = wx + "_pixelmask"
+		copyscales movie5d, $wx_pm
+		note $wx_pm, wx_info
+		moveWave $wx_pm, $(newFolderPath + ":" + wx_pm)
+		string wx_rm = wx + "_roimask"
+		copyscales movie5d, $wx_rm
+		note $wx_rm, wx_info
+		moveWave $wx_rm, $(newFolderPath + ":" + wx_rm)
+		string wx_sm = wx + "_synapses_map"
+		copyscales movie5d, $wx_sm
+		setscale/p z, 0, 1, "RGB", $wx_sm
+		moveWave $wx_sm, $(newFolderPath + ":" + wx_sm)
+		// overlay
+		string wx_overlay = wx + "_overlay"
+		copyscales movie5d, $wx_overlay
+		setscale/p t, 0,  dt, "s", $wx_overlay
+		setscale/p z, 0,  1, "RGB", $wx_overlay
+		note $wx_overlay, wx_info
+		moveWave $wx_overlay, $(newFolderPath + ":" + wx_overlay)
+		// 2d traces
+		string wx_dff = wx + "_dff_traces"
+		setscale/p x, 0,  dt, "s", $wx_dff
+		note $wx_dff, wx_info
+		moveWave $wx_dff, $(newFolderPath + ":" + wx_dff)
+		string wx_gas = wx + "_gs_amps"
+		setscale/p x, 0,  dt, "s", $wx_gas
+		moveWave $wx_gas, $(newFolderPath + ":" + wx_gas)
+		// synapses data
+		string wx_sd = wx + "_synapses_data"
+		moveWave $wx_sd, $(newFolderPath + ":" + wx_sd)
+	endfor
+	// redimension stimulus wave from python
+	string stimulusWaveKS = ksMoviePath + basename +"_stimulus"
+	// we may have changed folders so:
+	string stimulusWave = ksMoviePath + basename + "_stim"
+	// if it exists, erase (otherwise yields error)
+	if (waveExists($stimulusWave))
+		killwaves/z $stimulusWave
+	endif
+	// have to create a new wave to get rid of col1
+	variable nrows = dimSize($stimulusWaveKS,0)
+	make/o/n=(nrows) $stimulusWave 
+	wave sti = $stimulusWave
+	wave stiKS = $stimulusWaveKS
+	sti = stiKS[p][1]
+	setScale/p x 0, dt, "s", sti
+	killwaves stiKS
+end
+
+
+// 12.
 // Load experiment wave - for stimulus/analysis wave
 // string expWaves = pigLoadFiles(filters=".ibw;.txt",returnOnly=1,mkFolder="analysisWaves")
 function pigLoadAnalysisWave()
@@ -590,7 +684,7 @@ function pigLoadAnalysisWave()
 end
 
 
-// 12.
+// 13.
 // to load python outputs and then remove temporal folders
 // function pigLoadAndRemoveTempFolder(string pathToTempFolder)
 function pigLoadAndRemoveTempFolder()
@@ -614,6 +708,8 @@ function pigLoadAndRemoveTempFolder()
    	executeScriptText/z igorcmd
 		print s_value
 	endif
+	// this is only to organize 5d movies
+	
 end
 
 
@@ -623,7 +719,7 @@ end
 ////////////  13 & 14 are for running general scripts & KS, respectively
 
 
-// 13.
+// 14.
 // select python script, optionally a wave and run it
 // it doesn't accept extra arguments
 // so those changes have to made on the python script itself
@@ -669,7 +765,7 @@ function pigRun([string pigWaveName])
 end
 
 
-// 14.
+// 15.
 // this functions has 4 parts:
 // a) definitions and checks
 // b) run python script
@@ -786,7 +882,7 @@ function pigRunKS(wave movie [wave analysisWave])
 	else
 		string igorcmd = "do shell script \"rm -rf '" + pathToTempFolder + "'*\""
 		print igorcmd
-   	executeScriptText/z igorcmd
+		executeScriptText/z igorcmd
 		print s_value
 	endif
 	
@@ -799,88 +895,96 @@ function pigRunKS(wave movie [wave analysisWave])
 	// we may have changed dirs, so:
 	string cwdir = getDataFolder(1)
 	string basename = stringByKey("basename",note(movie),"=","\r")
-	string wx = cwdir + basename + "_reg"
-	copyscales $movieWave, $wx
-	setscale/p z, 0,  dt, "s", $wx
-	// this wave name can change
-	// _int is for interpolation method
-	string wx_int = wx + "_int"
-	// _isq is for pixel squaring
-	string wx_isq = wx + "_isq"
-	if (WaveExists($wx_int))
-   	copyScales $movieWave, $wx_int
-   	setscale/p z, 0,  dt, "s", $wx_int
-   	wx = wx + "_int"
-	elseif (WaveExists($wx_isq))
-    	CopyScales $movieWave, $wx_isq
-    	setscale/p z, 0,  dt, "s", $wx_isq
-    	wx = wx + "_isq"
-	else
-   		print "\ncouldn't find aspect correction file\n"
-   		print "most likely it wasn't created (and there's some problem during the python execution)"
-	endif
-	// bleach correction	
-	wx = wx + "_bc"
-	copyscales $movieWave, $wx
-	setscale/p z, 0,  dt, "s", $wx
-	// movie with overlayed synapses
-	// overlay layers are imported as RGB=4 & frames as chunks=nFrames
-	string wx_overlay = wx + "_overlay"
-	copyscales $movieWave, $wx_overlay
-	setscale/p t, 0,  dt, "s", $wx_overlay
-	setscale/p z, 0,  1, "RGB", $wx_overlay
-	// these have different terminations
-	string wx_df = wx + "_deltaf"
-	copyscales $movieWave, $wx_df
-	string wx_pm = wx + "_pixelmask"
-	copyscales $movieWave, $wx_pm
-	string wx_rm = wx + "_roimask"
-	copyscales $movieWave, $wx_rm
-	string wx_sm = wx + "_synapses_map"
-	copyscales $movieWave, $wx_sm
-	setscale/p z, 0, 1, "RGB", $wx_sm
-	
-	// for these, time goes in the x axis
-	// also, for traces we want to have the metadata
-	string wx_dff = wx + "_dff_traces"
-	string wx_gas = wx + "_gs_amps"
-	// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
-	setscale/p x, 0,  dt, "s", $wx_dff
-	setscale/p x, 0,  dt, "s", $wx_gas
-	// copy notes in files that may be used later
-	string wx_info = note(movie)
-	note $wx, wx_info
-	note $wx_df, wx_info
-	note $wx_pm, wx_info
-	note $wx_rm, wx_info
-	note $wx_dff, wx_info
-	note $wx_overlay, wx_info
-	
-	// redimension stimulus wave from python
-	string stimulusWaveKS = cwdir + basename +"_stimulus"
-	// we may have changed folders so:
-	string stimulusWave = cwdir + basename + "_stim"
-	// if it exists, erase (otherwise yields error)
-	if (waveExists($stimulusWave))
-		killwaves/z $stimulusWave
-	endif
-	// have to create a new wave to get rid of col1
-	variable nrows = dimSize($stimulusWaveKS,0)
-	make/o/n=(nrows) $stimulusWave 
-	wave sti = $stimulusWave
-	wave stiKS = $stimulusWaveKS
-	sti = stiKS[p][1]
-	setScale/p x 0, dt, "s", sti
-	killwaves stiKS
 		
-	// make a standar deviation image from processed movie
-	string stdWaveName = nameOfWave($wx)+"_std"
-	if (waveExists($stdWaveName))
-		killwaves/z $stdWaveName
-	endif
-	stdev($(nameOfWave($wx)),stdWaveName)
-	// make std image with ROIs on top
-	// overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
+	// if reg is not there, there was some problem
+	string wx = cwdir + basename + "_reg"
+	if (waveExists($wx))
+		// copyscales and notes
+		copyscales $movieWave, $wx
+		setscale/p z, 0,  dt, "s", $wx
+		// this wave name can change
+		// _int is for interpolation method
+		string wx_int = wx + "_int"
+		// _isq is for pixel squaring
+		string wx_isq = wx + "_isq"
+		if (WaveExists($wx_isq))
+			CopyScales $movieWave, $wx_isq
+			setscale/p z, 0,  dt, "s", $wx_isq
+			wx = wx + "_isq"
+		else
+			// this is just a double safety check, in case _reg is there
+			// but no interpolation method could be applied correctly
+			print "\ncouldnt find aspect-correction/interpolated movie file"
+			print "most likely it wasn't created (and there's some problem during the python execution)"
+			print "check the console for info\n"
+			abort
+		endif
+		// bleach correction	
+		wx = wx + "_bc"
+		copyscales $movieWave, $wx
+		setscale/p z, 0,  dt, "s", $wx
+		// movie with overlayed synapses
+		// overlay layers are imported as RGB=4 & frames as chunks=nFrames
+		string wx_overlay = wx + "_overlay"
+		copyscales $movieWave, $wx_overlay
+		setscale/p t, 0,  dt, "s", $wx_overlay
+		setscale/p z, 0,  1, "RGB", $wx_overlay
+		// these have different terminations
+		string wx_df = wx + "_deltaf"
+		copyscales $movieWave, $wx_df
+		string wx_pm = wx + "_pixelmask"
+		copyscales $movieWave, $wx_pm
+		string wx_rm = wx + "_roimask"
+		copyscales $movieWave, $wx_rm
+		string wx_sm = wx + "_synapses_map"
+		copyscales $movieWave, $wx_sm
+		setscale/p z, 0, 1, "RGB", $wx_sm
+	
+		// for these, time goes in the x axis
+		// also, for traces we want to have the metadata
+		string wx_dff = wx + "_dff_traces"
+		string wx_gas = wx + "_gs_amps"
+		// /p: change delta, x:dim, 0:start, dt:delta val, s:units, $wx: wave
+		setscale/p x, 0,  dt, "s", $wx_dff
+		setscale/p x, 0,  dt, "s", $wx_gas
+		// copy notes in files that may be used later
+		string wx_info = note(movie)
+		note $wx, wx_info
+		note $wx_df, wx_info
+		note $wx_pm, wx_info
+		note $wx_rm, wx_info
+		note $wx_dff, wx_info
+		note $wx_overlay, wx_info
+	
+		// redimension stimulus wave from python
+		string stimulusWaveKS = cwdir + basename +"_stimulus"
+		// we may have changed folders so:
+		string stimulusWave = cwdir + basename + "_stim"
+		// if it exists, erase (otherwise yields error)
+		if (waveExists($stimulusWave))
+			killwaves/z $stimulusWave
+		endif
+		// have to create a new wave to get rid of col1
+		variable nrows = dimSize($stimulusWaveKS,0)
+		make/o/n=(nrows) $stimulusWave 
+		wave sti = $stimulusWave
+		wave stiKS = $stimulusWaveKS
+		sti = stiKS[p][1]
+		setScale/p x 0, dt, "s", sti
+		killwaves stiKS
+		
+		// make a standar deviation image from processed movie
+		string stdWaveName = nameOfWave($wx)+"_std"
+		if (waveExists($stdWaveName))
+			killwaves/z $stdWaveName
+		endif
+		stdev($(nameOfWave($wx)),stdWaveName)
+		// make std image with ROIs on top
+		// overlay_circles($(nameOfWave($wx)+"_std"),$(nameOfWave($wx)+"_synapses"))
+	endif 
+	
+	// organize data if movies is 5d
+	pigOrganize5dMovieData(movie)
 end
 
 
