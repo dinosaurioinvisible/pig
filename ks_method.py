@@ -108,7 +108,6 @@ class KS_pipeline:
             raise Exception("this doesn't seem to be a framescan")
         # for output data
         if self.igor:
-            self.mk_names()
             if len(self.concat) > 0:
                 print(f'python: processing movies from: {movie_paths}')
             else:
@@ -347,7 +346,7 @@ class KS_pipeline:
         self.movie = movie_reg.copy()
         if self.igor:
             if self.movie5d:
-                self.savepath += '{self.current_movie}_reg'
+                self.savepath += f'_z{self.current_movie}_reg'
             else:
                 self.savepath += '_reg'
             tf.imwrite(f'{self.savepath}.tif', self.movie)
@@ -680,7 +679,10 @@ class KS_pipeline:
         # save
         if self.igor:
             # the transposition is just for visualization
-            np.savetxt(f'{self.savepath}_gs_amps.csv', self.gs_amps.T, delimiter=',')
+            if self.movie5d:
+                np.savetxt(f'{self.savepath}_gs_amps{self.current_movie}.csv', self.gs_amps.T, delimiter=',')
+            else:
+                np.savetxt(f'{self.savepath}_gs_amps.csv', self.gs_amps.T, delimiter=',')
 
 
     # i assume is the same as only the first window
@@ -696,7 +698,10 @@ class KS_pipeline:
         self.dff_traces = np.array(self.dff_traces)
         # save
         if self.igor:
-            tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
+            if self.movie5d:
+                tf.imwrite(f'{self.savepath}_dff_traces{self.current_movie}.tif', self.dff_traces)
+            else:
+                tf.imwrite(f'{self.savepath}_dff_traces.tif', self.dff_traces)
 
 
     # save results & make plots
@@ -704,12 +709,13 @@ class KS_pipeline:
         if self.igor:
             if self.movie5d:
                 for i in range(len(self.movies)):
-                    if len(self.ks_peaks) > 0:
+                    if len(self.movies_ks_peaks[i]) > 0:
                         dfx = pd.DataFrame(self.movies_ks_peaks[i], columns=["row","col","dF/F","ks-d","ks-p"])
-                    if len(self.synapses) > 0:
+                    if len(self.movies_synapses[i]) > 0:
                         dfx.to_csv(f'{self.savepath}_synapses_data{i}.csv')
                         tf.imwrite(f'{self.savepath}_pixelmask{i}.tif', self.movies_pixel_masks[i])
                         tf.imwrite(f'{self.savepath}_roimask{i}.tif', self.movies_roi_masks[i])
+                    # import pdb; pdb.set_trace()
             else:
                 dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
                 dfx.to_csv(f'{self.savepath}_synapses_data.csv')
@@ -718,7 +724,7 @@ class KS_pipeline:
         # txt info
         if self.igor:
             f = open(f'{self.savepath}_info.txt', 'w')
-            f.write(f'movie={self.savepath}\n')
+            f.write(f'movie={self.fname}\n')
             # input from Igor
             f.write(f'fov={self.fov}\n')
             f.write(f'alpha={self.alpha}\n')
@@ -759,9 +765,10 @@ class KS_pipeline:
             f.write(f'roiRadius={self.roi_radius}\n')
             if self.movie5d:
                 for i in range(len(self.movies)):
-                    f.write(f'nSynapses{i}={self.synapses.shape[0]}')
+                    f.write(f'nSynapses{i}={len(self.movies_synapses[i])}\n')
             else:
-                f.write(f'nSynapses={self.synapses.shape[0]}')
+                f.write(f'nSynapses={self.synapses.shape[0]}\n')
+            f.write(f'fdir={self.fdir}')
             f.close()
 
 
@@ -812,10 +819,14 @@ class KS_pipeline:
                 ha='center',va='center',fontweight='bold')
         plt.tight_layout()
         if self.igor:
-            # remove all margins
+            # remove all margins (that's why synapses maps is using plt.savefig)
             plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-            plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
-            tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map.astype(np.float32))
+            if self.movie5d:
+                tf.imwrite(f'{self.savepath}_deltaf{self.current_movie}.tif', self.deltaf_map.astype(np.float32))
+                plt.savefig(f'{self.savepath}_synapses_map{self.current_movie}.png', dpi=100, bbox_inches='tight', pad_inches=0)
+            else:
+                tf.imwrite(f'{self.savepath}_deltaf.tif', self.deltaf_map.astype(np.float32))
+                plt.savefig(f'{self.savepath}_synapses_map.png', dpi=100, bbox_inches='tight', pad_inches=0)
         else:
             plt.title(title)
             plt.show()
@@ -850,7 +861,10 @@ class KS_pipeline:
             overlay[:, rr, cc, ch] = val
         # save
         if self.igor:
-            tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
+            if self.movie5d:
+                tf.imwrite(f'{self.savepath}_overlay{self.current_movie}.tif', overlay)
+            else:
+                tf.imwrite(f'{self.savepath}_overlay.tif', overlay)
             if self.mk_videos:
                 # I commented out these lines, but i'm not removing them
                 # in case someone wants to use this functinoality
@@ -894,7 +908,7 @@ class KS_pipeline:
         ax_stim.set_xlabel("Time (s)")
         ax_stim.plot(*self.stimulus2d)
         bar = ax_stim.axvline(0, color='r')
-
+        # for each frame
         def update(i):
             im.set_data(movie[i])
             # movie time in seconds
@@ -993,59 +1007,59 @@ class KS_pipeline:
         plt.show()
 
 
-anWave = np.zeros(600)
-anWave[120:360] = 1
-fpath = "/Users/f/Dropbox/_r66y/data/2p_data/demoMovies/new_movies/AFx_s7_ss5_50lines_L60Mw_00001.tif"
-KS_pipeline(fpath, analysisWave_array=anWave)
+# anWave = np.zeros(600)
+# anWave[120:360] = 1
+# fpath = "/Users/f/Dropbox/_r66y/data/2p_data/demoMovies/new_movies/AFx_s7_ss5_50lines_L60Mw_00001.tif"
+# KS_pipeline(fpath, analysisWave_array=anWave)
 
 # to run from terminal
-# if __name__ == "__main__":
-#     path_to_movie = sys.argv[1]
-#     # default values, these are defined from Igor
-#     fov = 610
-#     alpha = 0.05
-#     min_distance = 3
-#     synapse_size = 2
-#     concat = ""                 # has to be changed for concatenated movies
-#     tempFolder = ""             # dir for files and outputs
-#     analysisWave = False        # stimulus/analysis wave 
-#     mk_videos = False           # overlay and overlay + stimulus
-#     igor = True                 # mostly for debugging
-#     # look for arguments
-#     for ei,arg in enumerate(sys.argv):
-#         # these can be changed from panel in Igor
-#         if arg.startswith('--fov='):
-#             fov = float(arg.split('=')[1])
-#         if arg.startswith('--alpha='):
-#             alpha = float(arg.split('=')[1])
-#         if arg.startswith('--minDist='):
-#             min_distance = float(arg.split('=')[1])
-#         if arg.startswith('--ROIsize='):
-#             synapse_size = float(arg.split('=')[1])
-#         if arg.startswith('--concat'):
-#             concat = str(arg.split('=')[1])
-#         if arg.startswith('--tempFolder'):
-#             tempFolder = str(arg.split('=')[1])
-#         if arg.startswith('--anwave'):
-#             analysisWave = True
-#         if arg == '--mk-videos':
-#             mk_videos = True
-#         # can be changed from terminal
-#         if arg == '--not-igor':
-#             igor = False
-#     # check if required libs are installed
-#     check_dependencies()
-#     x = KS_pipeline(fpath=path_to_movie,
-#         fov=fov,
-#         alpha=alpha,
-#         min_distance=min_distance,
-#         synapse_size=synapse_size,
-#         concat=concat,
-#         tempFolder=tempFolder,
-#         analysisWave=analysisWave,
-#         mk_videos=mk_videos,
-#         igor=igor,
-#         )
+if __name__ == "__main__":
+    path_to_movie = sys.argv[1]
+    # default values, these are defined from Igor
+    fov = 610
+    alpha = 0.05
+    min_distance = 3
+    synapse_size = 2
+    concat = ""                 # has to be changed for concatenated movies
+    tempFolder = ""             # dir for files and outputs
+    analysisWave = False        # stimulus/analysis wave 
+    mk_videos = False           # overlay and overlay + stimulus
+    igor = True                 # mostly for debugging
+    # look for arguments
+    for ei,arg in enumerate(sys.argv):
+        # these can be changed from panel in Igor
+        if arg.startswith('--fov='):
+            fov = float(arg.split('=')[1])
+        if arg.startswith('--alpha='):
+            alpha = float(arg.split('=')[1])
+        if arg.startswith('--minDist='):
+            min_distance = float(arg.split('=')[1])
+        if arg.startswith('--ROIsize='):
+            synapse_size = float(arg.split('=')[1])
+        if arg.startswith('--concat'):
+            concat = str(arg.split('=')[1])
+        if arg.startswith('--tempFolder'):
+            tempFolder = str(arg.split('=')[1])
+        if arg.startswith('--anwave'):
+            analysisWave = True
+        if arg == '--mk-videos':
+            mk_videos = True
+        # can be changed from terminal
+        if arg == '--not-igor':
+            igor = False
+    # check if required libs are installed
+    check_dependencies()
+    x = KS_pipeline(fpath=path_to_movie,
+        fov=fov,
+        alpha=alpha,
+        min_distance=min_distance,
+        synapse_size=synapse_size,
+        concat=concat,
+        tempFolder=tempFolder,
+        analysisWave=analysisWave,
+        mk_videos=mk_videos,
+        igor=igor,
+        )
 
 
 
