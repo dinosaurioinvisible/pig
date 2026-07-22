@@ -114,21 +114,27 @@ class KS_pipeline:
                 print(f'python: processing movie from: {self.fpath}')
                 
 
-    # TODO: by removing the tag.names in get_metadata.py
-    # this could be halved, taking off the 111 case
+    # these are a lot of try/except statements
+    # this could be halved, including the 111 Igor case in the previous cases
     # the other option is to use a dictionary 
     # honestly i don't know if it's worth the effort
     def get_metadata(self):
         self.metadata = get_metadata.get_scanImage_metadata(self.fpath)
-        self.movie5d = False
-        try_imageDescription, try_zData, try_Igor111 = False, False, False
+        self.movie5d, self.triangularWave, try_imageDescription, try_zData, try_Igor111 = False, False, False, False, False
+        # first we need to check if it's a volumetric movie
+        # i'm not 100% sure about this, but I looked a lot & this seems to be the best indicator
+        try:
+            if int(self.metadata["Software.SI.hStackManager.numFastZActuators"]) > 0:
+                self.movie5d = True 
+                try_zData = True
+        except:
+            pass
         # try software type first
         try:
             self.frameRate = round(float(self.metadata['Software.SI.hRoiManager.scanFrameRate']))
             self.zoomFactor = float(self.metadata['Software.SI.hRoiManager.scanZoomFactor'])
             self.scanAngleMultFast = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierFast"])
             self.scanAngleMultSlow = float(self.metadata["Software.SI.hRoiManager.scanAngleMultiplierSlow"])
-            try_zData = True
         except:
             try_imageDescription = True
         # if software, try volumetric data
@@ -139,7 +145,24 @@ class KS_pipeline:
                 self.zFlyback = int(self.metadata["Software.SI.hFastZ.numDiscardFlybackFrames"])
                 self.zTotalSlices = int(self.metadata["Software.SI.hStackManager.numFramesPerVolumeWithFlyback"])
                 self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
-                self.movie5d = True
+                # for triangle waves
+                if self.zVolumes == 1:
+                    self.triangularWave = True
+                    self.zSlices = int(self.metadata["Software.SI.hStackManager.numSlices"])
+                    self.zTotalSlices = self.zSlices
+                    # in triangle case volumeRate = frameRate, whic is for the whole movie
+                    self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanFrameRate"])/self.zSlices
+                    # for triangle case this is different for top & bottom layers
+                    # cycle makes the indexes for triangular waves (top to bottom)
+                    cycle = np.append(np.arange(0,self.zSlices,1),np.arange(self.zSlices-2,0,-1))
+                    totalFrames = int(self.metadata["Software.SI.hStackManager.framesPerSlice"])
+                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))[:totalFrames]
+                    # in this case, volumes is an array with different number of indexes
+                    # also, the spaces between indexes are syncoped 
+                    self.zVolumes = []
+                    for i in range(self.zSlices):
+                        volumeIndexes = np.where(indexes==i)[0]
+                        self.zVolumes.append(volumeIndexes)
             except:
                 pass
         # if not, try image description
@@ -165,14 +188,28 @@ class KS_pipeline:
             except:
                 pass
         # if software, try volumetric data
-        if try_zData:
+        if try_Igor111 and try_zData:
             try:
                 self.zVolumes = int(self.metadata["Software.SI.hStackManager.actualNumVolumes"])
                 self.zSlices = int(self.metadata["Software.SI.hStackManager.actualNumSlices"])
                 self.zFlyback = int(self.metadata["Software.SI.hFastZ.numDiscardFlybackFrames"])
                 self.zTotalSlices = int(self.metadata["Software.SI.hStackManager.numFramesPerVolumeWithFlyback"])
                 self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
-                self.movie5d = True
+                if self.zVolumes == 1:
+                    self.triangularWave = True
+                    self.zslices = int(self.metadata["Software.SI.hStackManager.numSlices"])
+                    self.zTotalSlices = self.zSlices
+                    self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanFrameRate"])
+                    self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanFrameRate"])/self.zSlices
+                    # TODO
+                    # the indexing depends on whether you start from top, middle or any other case
+                    cycle = np.append(np.arange(0,self.zSlices,1),np.arange(self.zSlices-2,0,-1))
+                    totalFrames = self.raw_movie.shape[0]
+                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))[:totalFrames]
+                    self.zVolumes = []
+                    for i in range(self.zSlices):
+                        volumeIndexes = np.where(indexes==i)[0]
+                        self.zVolumes.append(volumeIndexes)
             except:
                 pass
         # last case
@@ -184,7 +221,8 @@ class KS_pipeline:
                 self.scanAngleMultSlow = float(self.metadata["ImageDescription.state.acq.scanAngleMultiplierSlow"])
             except:
                 raise Exception("\nMetadata info not found\n")
-        if self.movie5d:
+        # for triangular waves, these are defined below
+        if self.movie5d==True and self.triangularWave==False:
             self.dt = 1/self.zFrameRate
         else:
             self.dt = 1/self.frameRate
@@ -213,8 +251,20 @@ class KS_pipeline:
     def deinterleave(self):
         if self.movie5d:
             self.totalFrames, channels, lines, cols = self.raw_movie.shape
-            self.raw_movie = self.raw_movie.reshape(self.zTotalSlices, self.zVolumes, channels, lines, cols)
-            self.raw_movie = self.raw_movie[:self.zSlices]
+            if self.triangularWave:
+                # if this is true, everything changes a bit from here on
+                self.movies = []
+                # in this case the deinterleave is different
+                for i in range(self.zSlices):
+                    iLayer = self.raw_movie[self.zVolumes[i]][:,0,:,:]
+                    self.movies.append(iLayer)
+                # is this the correct way to split channel 2??
+                self.channel2 = self.raw_movie[:,1,:,:]
+                return
+            else:
+                # this is the straight forward case
+                self.raw_movie = self.raw_movie.reshape(self.zTotalSlices, self.zVolumes, channels, lines, cols)
+                self.raw_movie = self.raw_movie[:self.zSlices]
         # depending on microscope/move type
         if len(self.raw_movie.shape) == 3:
             self.channel2 = self.raw_movie[1::2]
@@ -227,6 +277,7 @@ class KS_pipeline:
             self.channel2 = self.raw_movie[0,:,1,:,:]
             self.movies = self.raw_movie[:,:,0,:,:]
         # define some vars
+        # for triangle waves, there is not fixed number of nframes
         if self.movie5d:
             self.nframes = self.zVolumes
             self.duration = self.nframes/self.zFrameRate
@@ -236,7 +287,7 @@ class KS_pipeline:
 
 
     # makes steps from linear arr with changing values
-    def mk_stimulus(self, delta=0.05):
+    def mk_stimulus(self, delta=0.05, nseconds=70):
         # in some cases, ch2 will be empty
         # like in emily & elliot's movies
         # and the only way to know the stimulus will be to access some file
@@ -251,23 +302,65 @@ class KS_pipeline:
             self.stimulus = np.loadtxt(path_to_anWave)
         elif os.path.isfile(temp_path_to_anWave) and self.analysisWave:
             self.stimulus = np.loadtxt(temp_path_to_anWave)
+        elif self.triangularWave:
+            # this is for the specific case: 10 baseline - 10 st1 - 5 bs - 10 st2 - 5 bs , etc
+            # when having the proper analysisWave this should be adjusted
+            # and/or the exception probably uncommented
+            # top and bottom movies are different 
+            # and then may be different from each other, depending the cycle
+            # i think this is the safer way to avoid shape issues
+            # stimuli are correlative to movies this way
+            self.duration = nseconds
+            self.movies_stimuli = []
+            self.movies_frameRates, self.movies_dts = [], []
+            for i in range(len(self.movies)):
+                nframes = self.movies[i].shape[0]
+                stimulus = np.zeros(nframes)
+                stimulus[int(10/nseconds * nframes):int(20 /nseconds * nframes)] = 1
+                stimulus[int(25/nseconds * nframes):int(35 /nseconds * nframes)] = 1
+                stimulus[int(40/nseconds * nframes):int(50 /nseconds * nframes)] = 1
+                stimulus[int(55/nseconds * nframes):int(65 /nseconds * nframes)] = 1
+                self.movies_stimuli.append(stimulus)
+                # frameRates are different for some movies, 
+                # so they deviate from the average = self.zFrameRate
+                frameRate = nframes/nseconds
+                self.movies_frameRates.append(frameRate)
+                dt = 1/frameRate
+                self.movies_dts.append(dt)
+            # if self.triangularWave:
+                # raise Exception("\nFor volumetric movies with triangular waves you need to provide the stimulus wave\n")
         else:
             self.stimulus = self.channel2.mean(axis=(1,2))
             # normalize (only if auto, because of the high values)
             if self.stimulus.max() > 5:
                 self.stimulus = self.stimulus/self.stimulus.max()
         # stimulus as a function of time
-        self.stimulus2d = np.zeros((2,self.nframes))
-        if self.movie5d:
-            self.stimulus2d[0] = np.arange(self.nframes)/self.zFrameRate    
+        # for a list of stimuli
+        if self.movie5d and self.triangularWave:
+            self.movies_stimuli2d = []
+            for i in range(len(self.movies_stimuli)):
+                npoints = self.movies_stimuli[i].shape[0]
+                stimulus2d = np.zeros((2, npoints))
+                # stimulus2d[0] = np.arange(npoints)/self.zFrameRate
+                stimulus2d[0] = np.arange(npoints)/ self.movies_frameRates[i]
+                stimulus2d[1] = self.movies_stimuli[i]
+                self.movies_stimuli2d.append(stimulus2d)
+        elif self.movie5d:
+            self.stimulus2d = np.zeros((2,self.nframes))
+            self.stimulus2d[0] = np.arange(self.nframes)/self.zFrameRate
+            self.stimulus2d[1] = self.stimulus
         else:
+            self.stimulus2d = np.zeros((2,self.nframes))
             self.stimulus2d[0] = np.arange(self.nframes)/self.frameRate
-        self.stimulus2d[1] = self.stimulus
+            self.stimulus2d[1] = self.stimulus
         if self.igor:
-            # tf.imwrite(f'{self.savepath}_stimulus.tif', self.stimulus2d)
-            # np.savetxt(f'{self.savepath}_stimulus2d.csv', self.stimulus2d, delimiter=",")
-            df = pd.DataFrame({'time': self.stimulus2d[0], 'intensity': self.stimulus})
-            df.to_csv(f'{self.savepath}_stimulus.csv', index=False)
+            if self.triangularWave:
+                for i in range(len(self.movies_stimuli2d)):
+                    df = pd.DataFrame({'time': self.movies_stimuli2d[i][0], 'intensity': self.movies_stimuli2d[i][1]})
+                    df.to_csv(f'{self.savepath}_stimulus.csv', index=False)
+            else:
+                df = pd.DataFrame({'time': self.stimulus2d[0], 'intensity': self.stimulus})
+                df.to_csv(f'{self.savepath}_stimulus.csv', index=False)
         else:
             plt.plot(*self.stimulus2d)
             plt.title("stimulus")
@@ -278,36 +371,48 @@ class KS_pipeline:
     # delta: threshold to count as deviation from baseline
     # post_window: time window considered as potentially active (not baseline)
     def stim_transitions(self,delta=0.01,post_window=500):
-        # get approx mean for comparison
-        bval = self.stimulus[1:10].mean()
-        # replace val at ~ t=0 (first window), to avoid artifacts
-        self.stimulus[0] = bval
-        self.baseline = np.where(abs(self.stimulus-bval) <= bval*delta, 0, 1)
-        # for the analysis wave this isn't necessary
-        if not self.analysisWave:
-            # wx: window after which, even if baseline, signals reflect activity
-            # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
-            wx = int(self.frameRate * post_window/1000)
-            # bis: points where baseline/resting intervals start (skips t=0)
-            # if x(t)=rest=0 - x(t-1)=act=1 = -1 => from act to rest
-            bis = np.where(self.baseline-np.roll(self.baseline,1)==-1)[0]
-            # discard post activity windows
-            for bi in bis:
-                self.baseline[bi:bi+wx] = 1
-        # remaining points are baseline/rest indices
-        self.baseline_idxs = np.where(self.baseline==0)[0]
-        self.activity_idxs = self.baseline.nonzero()[0]
-        if not self.igor:
-            baseline = np.zeros(self.baseline.shape)
-            baseline[self.baseline_idxs] = 1
-            plt.plot(baseline)
-            plt.title("baseline idxs")
-            plt.show()
-            activity = np.zeros(self.baseline.shape)
-            activity[self.activity_idxs] = 1
-            plt.title("activity idxs")
-            plt.plot(activity)
-            plt.show()
+        # again for triangular waves, things have to be adapted
+        if self.triangularWave:
+            self.movies_baseline_idxs, self.movies_activity_idxs = [], []
+            for i in range(len(self.movies)):
+                bval = self.movies_stimuli[i][1:10].mean()
+                self.movies_stimuli[i][0] = bval
+                baseline = np.where(abs(self.movies_stimuli[i] - bval) <= bval*delta, 0, 1)
+                baseline_idxs = np.where(baseline==0)[0]
+                activity_idxs = baseline.nonzero()[0]
+                self.movies_baseline_idxs.append(baseline_idxs)
+                self.movies_activity_idxs.append(activity_idxs)
+        else:
+            # get approx mean for comparison
+            bval = self.stimulus[1:10].mean()
+            # replace val at ~ t=0 (first window), to avoid artifacts
+            self.stimulus[0] = bval
+            self.baseline = np.where(abs(self.stimulus-bval) <= bval*delta, 0, 1)
+            # for the analysis wave this isn't necessary
+            if not self.analysisWave:
+                # wx: window after which, even if baseline, signals reflect activity
+                # 500 mls in frames (frameRate = framesPerSecond, so half) = 1s/post_window
+                wx = int(self.frameRate * post_window/1000)
+                # bis: points where baseline/resting intervals start (skips t=0)
+                # if x(t)=rest=0 - x(t-1)=act=1 = -1 => from act to rest
+                bis = np.where(self.baseline-np.roll(self.baseline,1)==-1)[0]
+                # discard post activity windows
+                for bi in bis:
+                    self.baseline[bi:bi+wx] = 1
+            # remaining points are baseline/rest indices
+            self.baseline_idxs = np.where(self.baseline==0)[0]
+            self.activity_idxs = self.baseline.nonzero()[0]
+            if not self.igor:
+                baseline = np.zeros(self.baseline.shape)
+                baseline[self.baseline_idxs] = 1
+                plt.plot(baseline)
+                plt.title("baseline idxs")
+                plt.show()
+                activity = np.zeros(self.baseline.shape)
+                activity[self.activity_idxs] = 1
+                plt.title("activity idxs")
+                plt.plot(activity)
+                plt.show()
 
 
     # preprocessing
@@ -315,6 +420,8 @@ class KS_pipeline:
     def preprocessing(self):
         if self.movie5d:
             for i in range(len(self.movies)):
+                if self.triangularWave:
+                    self.nframes = self.movies[i].shape[0]
                 self.current_movie = i
                 self.movie = self.movies[i].copy()
                 self.register()
@@ -511,6 +618,10 @@ class KS_pipeline:
             for i in range(len(self.movies)):
                 self.movie = self.movies[i].copy()
                 self.current_movie = i
+                if self.triangularWave:
+                    self.nframes = self.movie.shape[0]
+                    self.baseline_idxs = self.movies_baseline_idxs[i]
+                    self.activity_idxs = self.movies_activity_idxs[i]
                 # get candidates from ∆F peak values
                 self.mk_deltaf_map()
                 self.movies_deltaf_maps.append(self.deltaf_map.copy())
@@ -523,6 +634,7 @@ class KS_pipeline:
                 self.movies_roi_masks.append(self.synapses_mask_rois.copy())
                 # check in case no ROIs were found
                 if isinstance(self.synapses, np.ndarray):
+                    self.nframes = self.movie.shape[0] if self.triangularWave else self.nframes
                     # demix ROIs using 2d gaussians
                     self.ridge_demixing()
                     self.movies_gs_amps.append(self.gs_amps.copy())

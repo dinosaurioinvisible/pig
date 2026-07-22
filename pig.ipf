@@ -517,22 +517,23 @@ function pigMultiLoad()
 	// string stimName0 = basename + "_ch2"
 	string stimName0 = multiname0 + "_ch2"
 	rename $stimName, $stimName0
-	// change name to main movie	
+	
+	// get metadata
+	pigGetMetadata($multiname0)
+	appendMetadata($multiname0)
 end
 
 
 // 11.
 // to organize layered/volumetric python output
-function pigOrganize5dMovieData(wave movie5d) 
+function pigOrganize5dMovieData(wave movie5d)
 	// basically there are 3 locations for
 	// 1) the movie, 2) the slices 3) new folder to move the slices in
 	string movieName = nameOfWave(movie5d)
 	string moviePath = getWavesDataFolder(movie5d,2)
 	// because we have moved into the KS results folder
 	string ksMoviePath = getDataFolder(1)
-	print(ksMoviePath)
 	string basename = stringByKey("basename",note(movie5d),"=","\r")
-	print(basename)
 	variable dt = numberByKey("dt",note(movie5d),"=","\r")
 	string wx_info = note(movie5d)
 	// iterate through loaded data
@@ -984,7 +985,11 @@ function pigRunKS(wave movie [wave analysisWave])
 	endif 
 	
 	// organize data if movies is 5d
-	pigOrganize5dMovieData(movie)
+	string zReg = cwdir + basename + "_z0_reg"
+	
+	if (waveExists($zReg))
+		pigOrganize5dMovieData(movie)
+	endif
 end
 
 
