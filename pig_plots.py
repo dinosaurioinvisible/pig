@@ -153,11 +153,18 @@ def mk_movie_plus_stimulus(path_to_movie, path_to_stimulus, frame_rate, savepath
     
 # to run from terminal
 if __name__ == "__main__":
+    # Pawel realized that the quotes coming from Igor
+    # which are needed to avoid problems like spaces, etc
+    # produce an error when calling files from paths
+    # the platform > system is a simple fix for this
+    from platform import system
     tempFolder = ""
     savename = ""
     for ei,arg in enumerate(sys.argv):
         if arg.startswith('--tempFolder'):
             tempFolder = str(arg.split('=')[1])
+            if system() == "Windows":
+                tempFolder = tempFolder[1:-1]
         if arg.startswith('--roiRadius'):
             roi_radius = float(arg.split('=')[1])
         if arg.startswith('--frameRate'):

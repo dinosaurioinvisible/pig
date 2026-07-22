@@ -71,7 +71,7 @@ def get_scanImage_metadata(path_to_movie,tempFolder="",igor=False,verbose=False)
             for i in paired_data:
                 if '=' in i:
                     k,v = i.split('=')
-                    metadata[k] = v.strip
+                    metadata[k] = v.strip()
         else:
             # the rest is very simple
             metadata[tag.name] = tag_data

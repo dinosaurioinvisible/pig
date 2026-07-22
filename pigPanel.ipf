@@ -190,7 +190,7 @@ function button_setPythonInterpreter(sva) : SetVariableControl
 				print "\npath to python saved at: "+pathToTxt
 			else
 				pathToTxt = parseFilePath(5, pigPythonPath_txt, "\\", 0, 0)		
-				executeScriptText/b/z "cmd.exe /c echo "+pathToPython+" >> \""+pathToTxt+"\""
+				executeScriptText/b/z "cmd.exe /c echo "+pathToPython+" > \""+pathToTxt+"\""
 				print "\npath to python saved at: "+pathToTxt
 			endif
 			

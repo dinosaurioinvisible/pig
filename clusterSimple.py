@@ -2,8 +2,9 @@ import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import StandardScaler
+import pandas as pd
 
-def clusterSimple(preprocessed_data, n_clusters = 20, n_repeats = 1000, do_PCA = True):
+def clusterSimple(preprocessed_data, n_clusters = 20, n_repeats = 10, do_PCA = True):
     """
     Function to run KSMeans clustering on data with at least two features, optimising the number of clusters based on Bayesian Information Criterion.
     INPUTS:
@@ -45,7 +46,8 @@ def clusterSimple(preprocessed_data, n_clusters = 20, n_repeats = 1000, do_PCA =
 # python script wave --tempFolder --filename
 if __name__ == "__main__":
     import sys, os
-    from pigHelper import save_output
+    from platform import system
+    from pig_helper_fxs import save_output
     tempFolder, waveFilename = "", ""
     for ei,arg in enumerate(sys.argv):
         if arg.startswith('--tempFolder'):
@@ -53,9 +55,12 @@ if __name__ == "__main__":
         if arg.startswith('--waveFilename'):
             waveFilename = str(arg.split('=')[1]) 
     if waveFilename and tempFolder:
-        wave_path = os.path.join(tempFolder,waveFilename)
-        wave = np.loadtxt(wave_path, delimiter=",")
-        output = clusterSimple(wave)
+        if system() == "Windows":
+            wave_path = os.path.join(tempFolder[1:-1],waveFilename[1:-1])
+        else:
+            wave_path = os.path.join(tempFolder,waveFilename)
+        wave = np.transpose(np.loadtxt(wave_path, delimiter=","))
+        output = pd.DataFrame(clusterSimple(wave))
         save_output(output, wave_path, suffix="_uxu")
         os.remove(wave_path)
     else:

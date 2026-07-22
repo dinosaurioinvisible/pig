@@ -9,13 +9,14 @@ function pigROIbuddy(wave w)
 	
 	string/g root:packages:pig:ROIbuddy_rois = nameofwave(w)
 	string basename = nameOfWave(w)[0,strSearch(nameOfWave(w),"_reg_",0)-1]
+	if (strlen(basename) == 0)
+		basename = nameOfWave(w)[0,strSearch(nameOfWave(w),"_dff_",0)-1]
+	endif
 	string/g root:packages:pig:ROIbuddy_basename = basename
 	// from pigZap: make global vars: nROI, onROI, wn (wavename), zn (stimulusname)
 	string name = nameofwave(w)
 	string/g root:Packages:pig:zap_wn = name
-	
 	// string/g root:Packages:pig:zap_zn = stimWaveName
-	
 	variable/g root:Packages:pig:zap_nROIs = dimsize(w,1)
 	variable onROI = 0
 	variable/g root:Packages:pig:zap_onROI = onROI
@@ -25,15 +26,33 @@ function pigROIbuddy(wave w)
 	string fdir = getWavesDataFolder(w,1)
 	string stimulus = fdir + basename + "_stim"
 	wave ws = $stimulus
+	if (!waveExists(ws))
+		string cwd = getDataFolder(1)
+		cwd = removeEnding(cwd, ":")
+		string parentFolder = cwd[0, strsearch(cwd, ":", strlen(cwd)-1, 1)]
+		print parentFolder
+		string movieName = stringByKey("basename",note(w),"=","\r")
+		stimulus = parentfolder + movieName + "_stim"
+		print(stimulus)
+		wave ws = $stimulus
+	endif
 	
 	// these files are different for KS
 	// look for the STD and ROImask files for background
 	// this assumes the processing made by the KS algorithm: 
 	// registration, interpolation/squaring & bleach correction
-	string std_image = basename + "_reg_isq_bc_std"
-	wave avg = $std_image
-	string roin = basename + "_reg_isq_bc_roimask"
+	// string avg_image = basename + "_reg_isq_bc_std"
+	string avg_image = basename + "_deltaf"
+	if (!waveExists($avg_image))
+		avg_image = basename + "_reg_isq_bc_deltaf"
+	endif
+	wave avg = $avg_image
+	string roin = basename + "_roimask"
+	if (!waveExists($roin))
+		roin = basename + "_reg_isq_bc_roimask"
+	endif
 	wave roi = $roin
+	string/g root:Packages:pig:zapBackground = roin
 	variable/g root:packages:pig:ROI2display=0
 	nvar ROI2display=root:packages:pig:ROI2display
 	variable/g root:packages:pig:CompareROI=0
@@ -90,10 +109,9 @@ end
 Function pigShowROI(sva) : SetVariableControl
 	STRUCT WMSetVariableAction &sva
 	
-	SVAR wn = root:Packages:pig:ROIbuddy_rois
-	SVAR basename = root:Packages:pig:ROIbuddy_basename
+	svar wn = root:Packages:pig:ROIbuddy_rois
+	svar roin = root:Packages:pig:zapBackground
 	wave w = $wn
-	string roin = basename + "_reg_isq_bc_roimask"
 	wave roi = $roin
 
 	switch( sva.eventCode )
@@ -133,10 +151,9 @@ End
 Function pigCompareCB(cba) : CheckBoxControl
 	STRUCT WMCheckboxAction &cba
 	
-	SVAR wn = root:Packages:pig:ROIbuddy_rois
-	SVAR basename = root:Packages:pig:ROIbuddy_basename
+	svar wn = root:Packages:pig:ROIbuddy_rois
+	svar roin = root:Packages:pig:zapBackground
 	wave w = $wn
-	string roin = basename + "_reg_isq_bc_roimask"
 	wave roi = $roin
 	nvar CompareROI=root:packages:pig:CompareROI
 	
@@ -175,10 +192,9 @@ end
 Function pigCompareROIsetvar(sva) : SetVariableControl
 	STRUCT WMSetVariableAction &sva
 	
-	SVAR wn = root:Packages:pig:ROIbuddy_rois
-	SVAR basename = root:Packages:pig:ROIbuddy_basename
-	wave w = $wn	
-	string roin = basename + "_reg_isq_bc_roimask"
+	svar wn = root:Packages:pig:ROIbuddy_rois
+	svar roin = root:Packages:pig:zapBackground
+	wave w = $wn
 	wave roi = $roin
 	
 	switch( sva.eventCode )
@@ -189,6 +205,12 @@ Function pigCompareROIsetvar(sva) : SetVariableControl
 			String sval = sva.sval
 			
 			variable/g root:packages:pig:CompareROI=dval
+			
+			variable/g root:packages:pig:ROI2display=dval
+			nvar ROI2display=root:packages:pig:ROI2display
+			// we need to update for pigZapBadROIs as well
+			// in case user goes back
+			variable/g root:Packages:pig:zap_onROI=dval
 			
 			break
 		case -1: // control being killed
@@ -211,9 +233,9 @@ function pigGoodButton(ba) : buttonControl
 	
 	// we need this global vars now, for updating the display
 	svar wn = root:Packages:pig:ROIbuddy_rois
-	svar basename = root:Packages:pig:ROIbuddy_basename
+	// svar basename = root:Packages:pig:ROIbuddy_basename
+	svar roin = root:Packages:pig:zapBackground
 	wave w = $wn
-	string roin = basename + "_reg_isq_bc_roimask"
 	wave roi = $roin
 			
 	switch(ba.eventcode)
@@ -254,12 +276,13 @@ end
 // still has to update ROI buddy info
 function pigBadButton(ba) : buttonControl
 	struct WMButtonAction&ba
-	// we need this global vars now, for updating the display
+	
 	svar wn = root:Packages:pig:ROIbuddy_rois
-	svar basename = root:Packages:pig:ROIbuddy_basename
+	// svar basename = root:Packages:pig:ROIbuddy_basename
+	svar roin = root:Packages:pig:zapBackground
 	wave w = $wn
-	string roin = basename + "_reg_isq_bc_roimask"
 	wave roi = $roin
+	
 	// procedure as such
 	switch(ba.eventcode)
 		case 2:
@@ -401,7 +424,8 @@ end
 
 
 function makeNewSynapsesMap(wave image, wave synapsesData)
-	string basename = stringByKey("basename", note(image), "=", "\r")
+	// string basename = stringByKey("basename", note(image), "=", "\r")
+	svar basename = root:Packages:pig:ROIbuddy_basename
 	// save image as TIFF & synapses data as CSV
 	imageSave/T="TIFF"/O/P=pigTemp image as basename + "_background.tif"
 	save/G/M="\n"/DLIM=","/O/P=pigTemp synapsesData as basename + "_synapses.csv"

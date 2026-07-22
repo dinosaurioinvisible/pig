@@ -32,6 +32,7 @@ class KS_pipeline:
         concat = "",                    # needed for concatenated movies
         tempFolder = "",                # dir for temporary files
         analysisWave = False,           # to replace default comparator from mk stimulus
+        analysisWave_array = None,      # to give manually instead of txt
         mk_videos = False,              # makes 2 overlay videos in same folder
         # not definable from terminal
         percentile = 70,                # for peaks (candidates)
@@ -40,8 +41,7 @@ class KS_pipeline:
         lambda_reg = 0.05,              # regul. strength in ridge regression
         edge_margin = 3,                # discarded, could be variable
         # for debugging
-        igor = False,                    # for saving & then loading into igor
-        analysisWave_array = None       # to give manually instead of txt
+        igor = False                    # for saving & then loading into igor
         ):
             # chosen in igor
             self.fpath = fpath
@@ -51,8 +51,11 @@ class KS_pipeline:
             self.synapseSize = synapse_size
             self.concat = concat
             self.tempFolder = tempFolder
-            self.analysisWave = analysisWave
             self.mk_videos = mk_videos
+            # for analysis & triangular wave (centre/top/bottom)
+            self.analysisWave = analysisWave
+            self.anWave_array = analysisWave_array
+            self.triangularWave_start = "centre"
             # not changeable from igor
             self.threshold_percentile = percentile
             self.sigma_smooth = sigma_smooth
@@ -61,7 +64,6 @@ class KS_pipeline:
             self.edge_margin = edge_margin
             # for debugging mostly
             self.igor = igor
-            self.anWave_array = analysisWave_array
             self.run()
 
     # TODO 
@@ -146,6 +148,7 @@ class KS_pipeline:
                 self.zTotalSlices = int(self.metadata["Software.SI.hStackManager.numFramesPerVolumeWithFlyback"])
                 self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
                 # for triangle waves
+                # actually, for the general case in which you don't have flyback lost layers
                 if self.zVolumes == 1:
                     self.triangularWave = True
                     self.zSlices = int(self.metadata["Software.SI.hStackManager.numSlices"])
@@ -156,7 +159,14 @@ class KS_pipeline:
                     # cycle makes the indexes for triangular waves (top to bottom)
                     cycle = np.append(np.arange(0,self.zSlices,1),np.arange(self.zSlices-2,0,-1))
                     totalFrames = int(self.metadata["Software.SI.hStackManager.framesPerSlice"])
-                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))[:totalFrames]
+                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))
+                    if self.triangularWave_start == "centre":
+                        start = indexes.shape[0] - totalFrames
+                        indexes = indexes[start:]
+                    elif self.triangularWave_start == "top":
+                        indexes = indexes[:totalFrames]
+                    elif self.triangularWave_start == "bottom":
+                        indexes = indexes[self.zSlices:self.zSlices + totalFrames]
                     # in this case, volumes is an array with different number of indexes
                     # also, the spaces between indexes are syncoped 
                     self.zVolumes = []
@@ -187,7 +197,10 @@ class KS_pipeline:
                 try_zData = True
             except:
                 pass
-        # if software, try volumetric data
+        # if Igor - software, try volumetric data
+        # this is the same as above, i think it could be generalized without much difficulty
+        # but i don't want to introduce new bugs at this points
+        # also while this is long is quite clear/readable, so probably is fine anyway
         if try_Igor111 and try_zData:
             try:
                 self.zVolumes = int(self.metadata["Software.SI.hStackManager.actualNumVolumes"])
@@ -197,15 +210,20 @@ class KS_pipeline:
                 self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanVolumeRate"])
                 if self.zVolumes == 1:
                     self.triangularWave = True
-                    self.zslices = int(self.metadata["Software.SI.hStackManager.numSlices"])
+                    self.zSlices = int(self.metadata["Software.SI.hStackManager.numSlices"])
                     self.zTotalSlices = self.zSlices
                     self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanFrameRate"])
                     self.zFrameRate = float(self.metadata["Software.SI.hRoiManager.scanFrameRate"])/self.zSlices
-                    # TODO
-                    # the indexing depends on whether you start from top, middle or any other case
                     cycle = np.append(np.arange(0,self.zSlices,1),np.arange(self.zSlices-2,0,-1))
-                    totalFrames = self.raw_movie.shape[0]
-                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))[:totalFrames]
+                    totalFrames = int(self.metadata["Software.SI.hStackManager.framesPerSlice"])
+                    indexes = np.tile(cycle,int(np.ceil(totalFrames/len(cycle))))
+                    if self.triangularWave_start == "centre":
+                        start = indexes.shape[0] - totalFrames
+                        indexes = indexes[start:]
+                    elif self.triangularWave_start == "top":
+                        indexes = indexes[:totalFrames]
+                    elif self.triangularWave_start == "bottom":
+                        indexes = indexes[self.zSlices:self.zSlices + totalFrames]
                     self.zVolumes = []
                     for i in range(self.zSlices):
                         volumeIndexes = np.where(indexes==i)[0]
@@ -247,7 +265,7 @@ class KS_pipeline:
         if not os.path.isdir(savedir):
             os.mkdir(savedir)
         
-        
+    # the deinterleaving is working fine for every movie i tried so far
     def deinterleave(self):
         if self.movie5d:
             self.totalFrames, channels, lines, cols = self.raw_movie.shape
@@ -275,7 +293,9 @@ class KS_pipeline:
         # in this case we have movies, instead of movie
         elif len(self.raw_movie.shape) == 5 and self.movie5d:
             self.channel2 = self.raw_movie[0,:,1,:,:]
-            self.movies = self.raw_movie[:,:,0,:,:]
+            # this has to be a list instead of an array
+            # because after squaring, the dimensions may change
+            self.movies = [mx for mx in self.raw_movie[:,:,0,:,:]]
         # define some vars
         # for triangle waves, there is not fixed number of nframes
         if self.movie5d:
@@ -285,7 +305,13 @@ class KS_pipeline:
             self.nframes = self.movie.shape[0]
             self.duration = self.nframes/self.frameRate
 
-
+    '''
+        This is working well for now, but when you have different 
+        experiments/stimulus you're gonna have to change/adapt it'
+        i wouldn't use ch2 unless you're totally sure it can be mapped
+        correctly. My guess is that it's easier to pass a wave
+        in the same way we pass the analysisWave
+    '''
     # makes steps from linear arr with changing values
     def mk_stimulus(self, delta=0.05, nseconds=70):
         # in some cases, ch2 will be empty
@@ -348,11 +374,15 @@ class KS_pipeline:
         elif self.movie5d:
             self.stimulus2d = np.zeros((2,self.nframes))
             self.stimulus2d[0] = np.arange(self.nframes)/self.zFrameRate
-            self.stimulus2d[1] = self.stimulus
+            # this is just in case the analysis wave does not exactly match
+            dl = self.nframes - self.stimulus.shape[0]
+            if 0 < abs(dl) < 5:
+                self.stimulus = np.append(self.stimulus,np.zeros(dl))
+                self.stimulus = self.stimulus[:self.nframes]
         else:
             self.stimulus2d = np.zeros((2,self.nframes))
             self.stimulus2d[0] = np.arange(self.nframes)/self.frameRate
-            self.stimulus2d[1] = self.stimulus
+            self.stimulus2d[1] = self.stimulus    
         if self.igor:
             if self.triangularWave:
                 for i in range(len(self.movies_stimuli2d)):
@@ -699,7 +729,7 @@ class KS_pipeline:
         if len(self.ks_peaks) == 0:
             self.synapses = []
             if self.movie5d:
-                print('\nno peaks found\n')
+                print('\nno peaks found in this layer\n')
                 return
             else:
                 raise Exception("\nNo peaks found\n")
@@ -827,7 +857,6 @@ class KS_pipeline:
                         dfx.to_csv(f'{self.savepath}_z{i}_synapses_data.csv')
                         tf.imwrite(f'{self.savepath}_z{i}_pixelmask.tif', self.movies_pixel_masks[i])
                         tf.imwrite(f'{self.savepath}_z{i}_roimask.tif', self.movies_roi_masks[i])
-                    # import pdb; pdb.set_trace()
             else:
                 dfx = pd.DataFrame(self.ks_peaks, columns=["row","col","dF/F","ks-d","ks-p"])
                 dfx.to_csv(f'{self.savepath}_synapses_data.csv')
@@ -847,13 +876,17 @@ class KS_pipeline:
                 f.write(f'slices={self.zSlices}\n')
                 f.write(f'discardedSlices={self.zFlyback}\n')
                 f.write(f'totalSlices={self.zTotalSlices}\n')
-                f.write(f'framesPerSlice={self.zVolumes}\n')
                 f.write(f'sliceFrameRate={self.zFrameRate}\n')
-                # this is for Igor access to this data
                 f.write(f'frameRate={self.zFrameRate}\n')
                 f.write(f'totalFrameRate={self.frameRate}\n')
-                f.write(f'nFrames={self.zVolumes}\n')
-                f.write(f'totalFrames={self.totalFrames}\n')
+                if self.triangularWave:
+                    for i in range(len(self.movies)):
+                        f.write(f'framesPerSlice{i}={self.movies[i].shape[0]}\n')
+                        f.write(f'frameRateLayer{i}={self.movies_frameRates[i]}\n')
+                else:
+                    f.write(f'framesPerSlice={self.zVolumes}\n')
+                    f.write(f'totalFrames={self.totalFrames}\n')
+                    f.write(f'nFrames={self.zVolumes}\n')
             else:
                 f.write(f'frameRate={self.frameRate}\n')
                 f.write(f'nFrames={self.nframes}\n')
@@ -1100,7 +1133,6 @@ class KS_pipeline:
             plt.savefig(f'{self.savepath}_rasterplot.png')
         else:
             plt.show()
-            # import pdb; pdb.set_trace()
 
     # quick stimulus plot
     def plot_stimulus(self):
@@ -1149,7 +1181,7 @@ if __name__ == "__main__":
             concat = str(arg.split('=')[1])
         if arg.startswith('--tempFolder'):
             tempFolder = str(arg.split('=')[1])
-        if arg.startswith('--anwave'):
+        if arg.startswith('--anWave'):
             analysisWave = True
         if arg == '--mk-videos':
             mk_videos = True

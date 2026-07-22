@@ -1,10 +1,1 @@
-/Users/f/vi/bin/python
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\AppData\Local\Programs\Python\Python314\python.exe 
-C:\Users\Fernando\zf\zv\Scripts\python.exe 
-C:\Users\Fernando\zf\zv\Scripts\python.exe 
 C:\Users\Fernando\zf\zv\Scripts\python.exe 

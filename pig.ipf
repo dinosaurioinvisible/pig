@@ -125,6 +125,9 @@ function runPythonScriptOnMovieWindows(string path_to_python, string path_to_pyt
 	// you may want to comment out these 2 lines
 	print "\nwindows cmd command:"
 	print igorcmd
+	// if you wanna use the pdb debugger in python, you can just remove the /b flag 
+	// in macos the /b flag not optional. it shows you what's happening, but
+	// sometimes it may raise some other issues, so better to put it back 
 	executeScriptText/b/z igorcmd
 	// s_value actually returns eventual errors in execution, so is better not to comment this out
 	print "s_value:"
@@ -147,7 +150,7 @@ function runPythonScriptOnMovieMacOs(string path_to_python, string path_to_pytho
 	// sprintf igorcmd, "do shell script \"%s %s %s\"", path_to_python, path_to_python_script, path_to_movie
 	print "\nshell command:"
 	print igorcmd
-   executeScriptText/z igorcmd
+   executeScriptText/b/z igorcmd
    // do not comment this out, it shows statements coming from python (including errors)
    print "s_value:"
    print s_value
@@ -539,6 +542,10 @@ function pigOrganize5dMovieData(wave movie5d)
 	// iterate through loaded data
 	variable i
 	variable zSlices = numberBykey("Software.SI.hStackManager.actualNumSlices",note(movie5d),"=","\r")
+	if (zSlices==1)
+		zSlices = numberBykey("Software.SI.hStackManager.numSlices",note(movie5d),"=","\r")
+	endif
+	// print zSlices
 	for (i = 0; i < zSlices; i += 1)
 		// make folder		
 		string newFolderPath = ksMoviePath + basename + "_z" + num2str(i)

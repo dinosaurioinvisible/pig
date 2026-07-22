@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 
 def save_output(result, savepath, suffix="_uu"):
     savepath = Path(savepath)
-    # tables
+    # table-like data
     if isinstance(result, pd.DataFrame):
-        output_path = savepath.with_suffix(f"{suffix}.csv")
+        output_path = savepath.with_name(f'{savepath.stem}{suffix}.csv')
         result.to_csv(output_path, index=False)
     # ndarray
     elif isinstance(result, np.ndarray):
